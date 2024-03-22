@@ -1,5 +1,2 @@
-library(dotenv)
-library(plumber)
-
-source("bin/env.r")
+source("bin/env.R")
 source("bin/plumber.R")

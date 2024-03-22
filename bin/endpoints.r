@@ -1,5 +1,4 @@
-
 #* @get /echo
-function(msg = "Hello, world!"){
+function(msg = "Hello, world!") {
   list(message = msg)
 }

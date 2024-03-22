@@ -1,3 +1,5 @@
+library(dotenv)
+
 cat("Loading .env file...", append = TRUE)
 
 load_dot_env(file = ".env")
