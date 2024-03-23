@@ -1,33 +1,59 @@
 library(mirtCAT)
 
 create_mirt_object <- function(
-    pars,
-    itemtype = "3PL",
-    latent_covariance = matrix(2)) {
+  parameters,
+  item_type = "3PL",
+  latent_means = NULL,
+  latent_covariance = NULL,
+  key = NULL,
+  min_category = 0
+) {
   mirt_object <- mirtCAT::generate.mirt_object(
-    pars,
-    itemtype = itemtype, latent_covariance = latent_covariance
+    parameters = parameters,
+    itemtype = item_type,
+    latent_means = latent_means,
+    latent_covariance = latent_covariance,
+    key = key,
+    min_category = min_category
   )
   return(mirt_object)
 }
 
-generate_pattern <- function(mirt_object, theta) {
-  pattern <- mirtCAT::generate_pattern(mirt_object, Theta = theta)
+generate_pattern <- function(
+  mirt_object,
+  theta,
+  dataframe = NULL
+) {
+  pattern <- mirtCAT::generate_pattern(
+    mo = mirt_object,
+    Theta = theta,
+    df = dataframe
+  )
   return(pattern)
 }
 
 create_design <- function(
-    mirt_object,
-    pattern_theta,
-    start_item = "MI",
-    criteria = "MI") {
-  pattern <- generate_pattern(mirt_object, Theta = pattern_theta)
+  mirt_object,
+  dataframe = NULL,
+  method = "MAP",
+  criteria = "seq",
+  start_item = 1,
+  pattern_theta,
+  pattern_dataframe = NULL,
+  ...
+) {
+  pattern <- generate_pattern(
+    mirt_object, theta = pattern_theta, dataframe = pattern_dataframe
+  )
 
   design <- mirtCAT(
     mo = mirt_object,
+    dataframe = dataframe,
     local_pattern = pattern,
     start_item = start_item,
-    criteria = criteria
+    criteria = criteria,
+    method = method,
+    ...
   )
 
   return(design)

@@ -1,2 +1,5 @@
+source("utils/rest.R")
+source("utils/serializer.R")
 source("bin/env.R")
+source("bin/cat.R")
 source("bin/plumber.R")
