@@ -1,7 +1,7 @@
 
 #* @get /hc
 function() {
-  return(response("Healthy!"))
+  return(list(status = jsonlite::unbox("Healthy!")))
 }
 
 #* @get /echo
