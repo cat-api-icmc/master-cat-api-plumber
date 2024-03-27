@@ -1,9 +1,5 @@
-# install plumber
-Rscript -e "install.packages('plumber', repos='https://cran.rstudio.com/')"
-packageVersion("plumber")
+docker build -t plumber-api .
 
-# install dotenv
-Rscript -e "install.packages('dotenv', repos='https://cran.rstudio.com/')"
+docker run -p 8080:8080 -ti plumber-api
 
-# install mirtCAT
-Rscript -e "install.packages('mirtCAT', repos='https://cran.rstudio.com/')"
+docker stop $(docker ps -a -q)

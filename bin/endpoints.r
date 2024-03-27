@@ -1,7 +1,12 @@
 
+#* @get /hc
+function() {
+  return(response("Healthy!"))
+}
+
 #* @get /echo
 function(msg = "Hello, world!") {
-  list(message = msg)
+  return(response(msg))
 }
 
 #* @get /test/serialize_design
