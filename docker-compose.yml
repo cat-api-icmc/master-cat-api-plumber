@@ -1,0 +1,15 @@
+services:
+  plumber-api:
+    build: .
+    command: Rscript main.R
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/app
+    networks:
+      - cat-api
+
+networks:
+  cat-api:
+    external: true
+    name: cat-api
