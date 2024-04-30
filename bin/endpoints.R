@@ -1,7 +1,12 @@
 
 #* @get /hc
 function() {
-  return(list(status = jsonlite::unbox("Healthy!")))
+  return(list(status = jsonlite::unbox(
+    sprintf(
+      "Healthy! %s | plumber %s | api %s", 
+      r_version, plumber_version, app_version
+    )
+  )))
 }
 
 #* @get /echo
