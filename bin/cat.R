@@ -3,7 +3,7 @@ library(mirtCAT)
 build_irt_parameters <- function(
   discrimination_list,
   difficulty_list,
-  guessing_list,
+  guessing_list
 ) {
   df <- data.frame(
     a1 = discrimination_list,
@@ -45,7 +45,7 @@ generate_pattern <- function(
   return(pattern)
 }
 
-create_design <- function(
+create_cat_design <- function(
   mirt_object,
   dataframe = NULL,
   method = "MAP",
@@ -59,15 +59,16 @@ create_design <- function(
     mirt_object, theta = pattern_theta, dataframe = pattern_dataframe
   )
 
-  design <- mirtCAT(
+  cat_design <- mirtCAT(
     mo = mirt_object,
     dataframe = dataframe,
     local_pattern = pattern,
     start_item = start_item,
     criteria = criteria,
+    design_elements = TRUE,
     method = method,
     ...
   )
 
-  return(design)
+  return(cat_design)
 }
