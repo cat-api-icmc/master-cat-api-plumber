@@ -9,10 +9,7 @@ function() {
   )))
 }
 
-#* @get /echo
-function(msg = "Hello, world!") {
-  return(response(msg))
-}
+
 
 #* @get /test/serialize_design
 function() {

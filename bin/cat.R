@@ -1,5 +1,18 @@
 library(mirtCAT)
 
+build_irt_parameters <- function(
+  discrimination_list,
+  difficulty_list,
+  guessing_list,
+) {
+  df <- data.frame(
+    a1 = discrimination_list,
+    d = difficulty_list,
+    g = guessing_list
+  )
+  return(df)
+}
+
 create_mirt_object <- function(
   parameters,
   item_type = "3PL",
