@@ -45,18 +45,18 @@ function(req) {
   prev_item <- req$body$previous_index
 
   # deserialize and update design
-  cat_design <- updateDesign(
-    deserialize_design(e_design), 
-    new_item = prev_item, 
+  cat_design <- mirtCAT::updateDesign(
+    deserialize_design(e_design),
+    new_item = prev_item,
     new_response = answer,
-    updateTheta = T
+    updateTheta = TRUE
   )
 
   # get next item
-  next_index <- findNextItem(cat_design)
+  next_index <- mirtCAT::findNextItem(cat_design)
 
   return(list(
-    next_index= jsonlite::unbox(next_index),
+    next_index = jsonlite::unbox(next_index),
     # TODO: fix this and send the next item uuid
     # next_item = jsonlite::unbox(questions$id[next_index]),
     stop = jsonlite::unbox(cat_design$design@stop_now),
