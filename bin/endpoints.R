@@ -27,12 +27,11 @@ function(req) {
   )
 
   # start assessment
-  cat_design <- create_cat_design(mo, pattern_theta=pattern_theta)
+  cat_design <- create_cat_design(mo, pattern_theta = pattern_theta)
   next_index <- mirtCAT::findNextItem(cat_design)
 
   return(list(
-    next_index= jsonlite::unbox(next_index),
-    next_item = jsonlite::unbox(questions$id[next_index]),
+    next_index = jsonlite::unbox(next_index),
     stop = jsonlite::unbox(cat_design$design@stop_now),
     design = jsonlite::unbox(serialize_design(cat_design))
   ))
@@ -57,8 +56,6 @@ function(req) {
 
   return(list(
     next_index = jsonlite::unbox(next_index),
-    # TODO: fix this and send the next item uuid
-    # next_item = jsonlite::unbox(questions$id[next_index]),
     stop = jsonlite::unbox(cat_design$design@stop_now),
     design = jsonlite::unbox(serialize_design(cat_design))
   ))
