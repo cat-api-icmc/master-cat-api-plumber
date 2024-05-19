@@ -2,7 +2,6 @@ r_version <- R.version$version.string
 plumber_version <- packageVersion("plumber")
 app_version <- "1.0.0"
 
-source("utils/rest.R")
 source("utils/serializer.R")
 source("bin/env.R")
 source("bin/cat.R")
