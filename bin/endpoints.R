@@ -52,7 +52,11 @@ function(req) {
   )
 
   # get next item
-  next_index <- mirtCAT::findNextItem(cat_design)
+  next_index <- ifelse(
+    !cat_design$design@stop_now, 
+    next_index,
+    0
+  )
 
   return(list(
     next_index = jsonlite::unbox(next_index),
