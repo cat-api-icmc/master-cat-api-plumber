@@ -65,33 +65,28 @@ function(req) {
   ))
 }
 
-#* @get /test/serialize_design
-function() {
-  a <- c(1, 1.2, 0.9, 0.8, 1.1, 1.2, 0.8, 0.7, 0.5, 1)
-  d <- c(-1, 1.5, 0, 0.5, -0.5, -1, 0, 0.1, 1.1, -0.2)
-  g <- rep(0.2, 10)
-  pars <- data.frame(a1 = a, d = d, g = g)
-  lc <- matrix(2)
 
-  mo <- create_mirt_object(
-    parameters = pars,
-    latent_covariance = lc,
-  )
-  design <- create_design(mo, pattern_theta = 0.1)
-
-  e <- serialize_design(design)
-  return(response(e))
-}
-
-#* @post /test/serialize_design
+#* @post /get-design-data
 function(req) {
-  e <- req$body$encoded
-  design <- deserialize_design(e)
+  e_design <- req$body$design
+  cat_design <- deserialize_design(e_design)
 
-  print(design)
-  print(class(design))
-  print(typeof(design))
+  item_history <- cat_design$person$items_answered
+  response_history <- cat_design$person$responses
+  theta_history <- lapply(
+    cat_design$person$thetas_history, 
+    function(x) jsonlite::unbox(x)
+  )
+  standard_error_history <- lapply(
+    cat_design$person$thetas_SE_history, 
+    function(x) jsonlite::unbox(x)
+  )
 
-  return("DONE!")
+  return(list(
+    "item_history" = item_history,
+    "response_history" = response_history,
+    "theta_history" = theta_history,
+    "standard_error_history" = standard_error_history
+  ))
 }
 
