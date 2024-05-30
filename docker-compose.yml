@@ -1,6 +1,7 @@
 services:
   plumber-api:
     build: .
+    image: brunosilvestre00/plumber-cat-api
     command: Rscript main.R
     ports:
       - "8080:8080"
