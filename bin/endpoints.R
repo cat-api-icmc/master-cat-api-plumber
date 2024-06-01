@@ -53,8 +53,8 @@ function(req) {
 
   # get next item
   next_index <- ifelse(
-    !cat_design$design@stop_now, 
-    next_index,
+    !cat_design$design@stop_now,
+    mirtCAT::findNextItem(cat_design),
     0
   )
 
