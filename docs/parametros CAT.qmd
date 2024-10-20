@@ -1,0 +1,330 @@
+---
+title: "Documentação do mirtCAT"
+format: html
+editor: visual
+---
+
+# Função `mirtCAT()`
+
+A função `mirtCAT()` fornece ferramentas para gerar uma interface HTML para criar testes educacionais e psicológicos, adaptativos e não adaptativos, usando o pacote `shiny`. Adequado para a aplicação de testes adaptativos computadorizados unidimensionais e multidimensionais utilizando a metodologia da Teoria de Resposta ao Item (TRI). A pontuação dos testes é realizada usando o pacote `mirt`. No entanto, se nenhuma pontuação for necessária (ou seja, um questionário padrão), a definição de um objeto `mirt` pode ser omitida.
+
+Aqui estão os detalhes dos critérios relacionados ao funcionamento dos testes:
+
+-   **Critério de Parada**: Todos os testes serão interrompidos assim que o critério `min_SEM` for alcançado ou quando uma classificação acima ou abaixo dos limites especificados puder ser feita.
+
+-   **Respostas Obrigatórias**: Se todos os itens devem ser respondidos, os usuários devem especificar um valor `min_SEM` extremamente pequeno ou, de maneira equivalente, um critério `min_items` elevado na entrada da lista de design.
+
+Esses critérios garantem que o teste atenda a um padrão mínimo de precisão (SEM - erro padrão da medida) antes de decidir se deve continuar ou encerrar o processo de teste.
+
+## Design
+
+O parâmetro de **Design** na função mirt é uma lista de parâmetros de controle baseados no design para testes adaptativos e não adaptativos.
+
+```{r,eval=FALSE}
+nfact <- 1 # número de dimensões do teste
+
+design <- list(
+  min_SEM                = rep(0.3, nfact), # critério de parada
+  delta_thetas           = rep(0, nfact),   # critério de parada
+  thetas.start           = rep(0, nfact),   # chute inicial
+  min_items              = 1,               # critério de parada
+  max_items              = 1,               # critério de parada (opcional)
+  max_time               = Inf,             # critério de parada 
+  quadpts                = NULL,            # cálculo de proficiência (opcional)
+  theta_range            = c(-6,6),         # cálculo de proficiência (opcional)
+  allow_constrain_breaks = F,               # critério de parada (opcional)
+  weights                = rep(1, nfact),   # critério de seleção de itens (opcional)
+  KL_delta               = 0.1,             # critério de seleção de itens (opcional)
+  content                = NULL,            # controle de conteúdo (opcional)
+  content_prop           = NULL,            # controle de conteúdo (opcional)
+  classify               = NULL,            # critério de parada (opcional)
+  classify_CI            = NULL,            # critério de parada (opcional)
+  sprt_lower             = NULL,            # critério de parada (opcional)
+  sprt_upper             = NULL,            # critério de parada (opcional)
+  sprt_alpha             = NULL,            # critério de parada (opcional)
+  sprt_beta              = NULL,            # critério de parada (opcional)
+  sprt_beta              = NULL,            # controle de exposição (opcional)
+  constraints            = NULL,            # critério de seleção de itens (opcional)
+  customUpdateThetas     = NULL,            # cálculo de proficiência (opcional)
+  customNextItem         = NULL,            # critério de seleção de itens (opcional)
+  constr_fun             = NULL,            # critério de seleção de itens (opcional)
+  test_properties        = NULL,            # critério de seleção de itens (opcional) 
+  person_properties      = NULL             # critério de seleção de itens (opcional) 
+  )
+```
+
+**min_SEM**: O padrão é `rep(0.3, nfact)`; erro padrão mínimo de medição a ser alcançado para os traços latentes (thetas) antes que o teste seja interrompido. Se o teste for multidimensional, pode ser fornecido um único valor ou um vetor de valores para definir os critérios de SEM para cada dimensão.
+
+**delta_thetas**: O padrão é `rep(0, nfact)`; critério de parada baseado na mudança nos valores dos traços latentes (por exemplo, uma mudança de theta = 1.5 para theta = 1.54 pararia o CAT se `delta_thetas = 0.05`). O padrão desabilita este critério de parada.
+
+**thetas.start**: Um vetor numérico de valores iniciais para os parâmetros theta (o padrão é `rep(0, nfact)`) ou uma matriz com N linhas e nfact colunas, onde N é igual a `nrow(local_pattern)`.
+
+**min_items**: Número mínimo de itens que devem ser respondidos antes que o teste seja interrompido. O padrão é 1.
+
+**max_items**: Número máximo de itens que podem ser respondidos. O padrão é o comprimento do banco de itens.
+
+**max_time**: Tempo máximo permitido para a interface gráfica gerada, medido em segundos. Por exemplo, se o teste deve parar após 10 minutos, o número 600 deve ser passado (10 \* 60). O padrão é `Inf`, portanto, sem limite de tempo.
+
+**quadpts**: Número de pontos de quadratura usados por dimensão para integração (se necessário). O padrão é idêntico ao esquema em `fscores`.
+
+**theta_range**: Intervalo superior e inferior para a grade de integração theta. Usado em conjunto com `quadpts` para gerar uma grade de quadratura igualmente espaçada. O padrão é `c(-6,6)`.
+
+**allow_constrain_breaks**: Lógico; o teste deve ser permitido a terminar no meio da administração dos itens em um conjunto de testes (não) ordenado especificado em `constraints`? O padrão é `FALSE`.
+
+**weights**: Pesos usados quando `criteria == 'Wrule'`, mas também serão aplicados para funções de traço ponderadas nas regras T e A. O padrão atribui pesos iguais às dimensões latentes. O padrão é `rep(1, nfact)`, onde `nfact` é o número de dimensões do teste.
+
+**KL_delta**: Intervalo utilizado quando `criteria = 'KL'` ou `criteria = 'KLn'`. O padrão é 0,1.
+
+**content**: Um vetor de caracteres opcional indicando o tipo de conteúdo medido por um item. Deve ser fornecido em conjunto com `content_prop`.
+
+**content_prop**: Um vetor numérico opcional nomeado, indicando a distribuição das proporções de conteúdo dos itens. Um vetor `content` também deve ser fornecido para indicar a classificação do conteúdo dos itens. Por exemplo, se o `content` contiver três possíveis domínios de conteúdo de itens: 'Adição', 'Subtração' e 'Multiplicação', e o teste deve conter aproximadamente metade de multiplicação e um quarto de adição e subtração, então uma entrada adequada seria:
+
+`content_prop = c('Addition'=0.25, 'Subtraction'=0.25, 'Multiplication'=.5)`
+
+Observe que `content_prop` deve somar 1 para representar proporções populacionais válidas.
+
+**classify**: Um vetor numérico indicando o(s) valor(es) limite para classificação acima ou abaixo de algum limiar anterior. O padrão não utiliza o esquema de classificação.
+
+**classify_CI**: Um vetor numérico indicando os intervalos de confiança usados para classificar indivíduos acima ou abaixo dos valores em `classify`. Os valores devem estar entre 0 e 1 (por exemplo, 0,95 dá 95% de intervalo de confiança).
+
+**sprt_lower**: Um vetor numérico indicando valores limite inferiores para classificação acima ou abaixo de algum limiar anterior usando o teste de razão de probabilidade sequencial. O padrão não utiliza o esquema de classificação.
+
+**sprt_upper**: Um vetor numérico indicando valores limite superiores para classificação acima ou abaixo de algum limiar anterior usando o teste de razão de probabilidade sequencial. O padrão não utiliza o esquema de classificação.
+
+**sprt_alpha**: Um vetor numérico indicando a taxa de erro do limite inferior a ser usada para o SPRT. O padrão é 0,05.
+
+**sprt_beta**: Um vetor numérico indicando a taxa de erro do limite superior a ser usada para o SPRT. O padrão é 0,05.
+
+**exposure**: Um vetor numérico especificando a quantidade de controle de exposição a ser aplicada para cada item sucessivo (o comprimento deve ser igual ao número de itens). Observe que isso inclui o primeiro item também quando um critério de seleção é especificado; portanto, se um item específico deve ser usado como o primeiro item, o primeiro elemento de `exposure` deve ser 1. O padrão não usa controle de exposição.
+
+Se a exposição de um item for maior que 1, então os n critérios mais ótimos serão selecionados aleatoriamente. Por exemplo, se `exposure[5] == 3`, e `criteria = 'MI'`, então, quando o quinto item for selecionado do conjunto restante, os 3 itens candidatos principais que demonstram o maior critério de informação serão selecionados aleatoriamente. Naturalmente, os primeiros e últimos elementos de `exposure` são ignorados, pois o controle de exposição será irrelevante.
+
+Se todos os elementos de `exposure` estiverem entre 0 e 1, então o método de controle de exposição Sympson-Hetter será implementado. Neste método, um item é administrado apenas se passar em uma simulação de probabilidade; caso contrário, ele é removido do conjunto de itens. Valores mais próximos de 1 têm maior probabilidade de aparecer no teste, enquanto valores mais próximos de 0 têm maior probabilidade de serem descartados aleatoriamente.
+
+**constraints**: Uma lista nomeada declarando várias restrições de seleção de itens para determinados itens, onde cada elemento da lista é um vetor de números de itens. A menos que seja especificado, múltiplos elementos podem ser declarados (por exemplo, `list(ordered = c(1:5), ordered = c(7:9))` é perfeitamente aceitável). Estes incluem:
+
+-   **not_scored**: Declaração de itens que podem ser selecionados, mas não serão usados na pontuação do CAT. Isso é principalmente útil ao incluir itens experimentais para futuros CATs. Apenas um vetor de elementos `not_scored` pode ser fornecido.
+
+-   **excluded**: Itens que não devem aparecer na sessão (útil ao re-testar participantes que já viram alguns dos itens). Apenas um vetor de elementos `excluded` pode ser fornecido.
+
+-   **independent**: Declaração de quais itens nunca devem aparecer na mesma sessão CAT. Use isso se, por exemplo, o item 1 e o item 10 tiverem perguntas muito semelhantes e, portanto, não devem aparecer na mesma sessão.
+
+-   **ordered**: Se um item for selecionado durante o CAT, administre este grupo específico de itens na ordem de acordo com a sequência especificada.
+
+-   **unordered**: Semelhante ao `ordered`, exceto que os itens do grupo serão selecionados aleatoriamente até que o grupo esteja completo.
+
+**customUpdateThetas**: Uma função mais avançada na forma `customUpdateThetas <- function(design, person, test)` para atualizar as estimativas de habilidades/traços latentes ao longo da sessão do CAT (ou mais geralmente, da pontuação).
+
+Por exemplo, uma função mínima funcional seria assim (observe o uso de `rbind()` para adicionar os termos históricos no objeto `person`):
+
+``` r
+myfun <- function(design, person, test){
+    mo <- extract.mirtCAT(test, 'mo')
+    responses <- extract.mirtCAT(person, 'responses')
+    tmp <- fscores(mo, response.pattern = responses)
+    person$Update_thetas(tmp[,'F1'],
+                         tmp[,'SE_F1', drop=FALSE])
+    invisible()
+}
+```
+
+**customNextItem**: Uma função mais avançada na forma `customNextItem <- function(design, person, test)` para usar um método personalizado de seleção de itens. Isso requer programação mais complexa e compreensão dos elementos internos do `mirtCAT`, e é recomendado inicialmente usar um navegador para entender o estado dos argumentos de entrada. Quando definida, todas as entradas na lista de restrições opcionais, exceto `not_scored`, serão ignoradas.
+
+Use essa função se você desejar programar explicitamente suas técnicas de seleção de itens, embora isso possa ser combinado com a função interna `findNextItem` com entradas análogas. A função deve retornar um único valor inteiro indicando o próximo item a ser administrado ou um valor `NA` para indicar que o teste deve ser encerrado. Veja `extract.mirtCAT` para detalhes sobre como extrair e manipular vários elementos internos dos argumentos funcionais exigidos.
+
+**constr_fun**: (AVISO: fornecer essa função desativará várias das restrições heurísticas de seleção de itens na lista de restrições; a saber, todas as opções da lista, exceto "not_scored").
+
+Este argumento contém uma função opcional definida pelo usuário na forma `function(design, person, test)` que retorna um `data.frame` contendo o lado esquerdo, a relação e o lado direito das restrições para `lp`. Cada linha corresponde a uma restrição, enquanto o número de colunas deve ser igual ao número de itens, mais 2. Observe que os nomes das colunas do objeto `data.frame` retornado não são importantes.
+
+Por exemplo, suponha que para um dado teste o usuário queira adicionar a restrição de que exatamente 10 itens devem ser administrados a todos os participantes, e que os itens 1 e 2 não devem ser incluídos no mesmo teste. A entrada seria definida como:
+
+``` r
+const_fun <- function(design, person, test){
+    nitems <- extract.mirt(test@mo, 'nitems')
+    lhs <- matrix(0, 2, nitems)
+    lhs[1, ] <- 1
+    lhs[2, c(1,2)] <- 1
+    data.frame(item=lhs, relation=c("==", "<="), value=c(10, 1))
+}
+```
+
+A definição acima corresponde às restrições `1 * x1 + 1 * x2 + ... + 1 * xn = 10` e `1 * x1 + 1 * x2 + 0 * x3 + ... + 0 * xn <= 1`, onde os termos `x` representam indicadores binários para cada respectivo item, que o otimizador está buscando. Dado algum vetor objetivo fornecido a `findNextItem`, os 10 itens mais otimizados serão selecionados, atendendo a essas duas restrições, significando que 1) exatamente 10 itens serão administrados, e 2) se o item 1 ou 2 forem selecionados, esses dois itens nunca aparecerão no mesmo formulário de teste (embora nenhum seja forçado a aparecer em qualquer teste). Veja `findNextItem` para mais detalhes e exemplos.
+
+**test_properties**: Um objeto `data.frame` definido pelo usuário para ser usado com uma função `customNextItem` fornecida. Isso deve ser usado para definir propriedades específicas inerentes aos itens do teste (por exemplo, se são experimentais, têm um esquema de ponderação particular, devem ser usados apenas para um grupo específico de indivíduos, e assim por diante). O número de linhas deve ser igual ao número de itens no banco de itens, e cada linha corresponde ao respectivo item. Essa entrada aparece no objeto de design interno em um slot `test_properties`.
+
+**person_properties**: Um objeto `data.frame` definido pelo usuário para ser usado com uma função `customNextItem` fornecida. Isso deve ser usado para definir propriedades específicas inerentes aos participantes (por exemplo, variáveis de agrupamento conhecidas, idade, se já fizeram o teste antes (e quais itens responderam), e assim por diante). Em simulações off-line, o número de linhas deve ser igual ao número de participantes. Essa entrada aparece no objeto de design interno em um slot `person_properties`; para simulações de Monte Carlo, as linhas devem ser indexadas manualmente usando o slot `person$ID`.
+
+## Parâmetros Gerais
+
+```{r,eval=FALSE}
+mirtCAT(
+  df                       = NULL,   # banco de itens
+  mo                       = NULL,   # objeto mirt
+  method                   = "MAP",  # cálculo de proficiência 
+  criteria                 = "seq",  # critério de seleção de itens
+  start_item               = 1,      # critério de seleção de itens
+  local_pattern            = NULL,   # respostas 
+  AnswerFuns               = list(), # função para correção de respostas (opcional)
+  design_elements          = FALSE,  # indicador de retorno de informações do CAT
+  cl                       = NULL,   # controle de paralelismo (opcional)
+  progress                 = FALSE,  # barra de progresso da simulação (opcional)
+  primeCluster             = TRUE,   # controle de paralelismo (opcional)
+  customTypes              = list(), # elemetros gráficos (opcional)
+  design                   = list(), # configurações do teste 
+  shinyGUI                 = list(), # elemetros gráficos (opcional)
+  preCAT                   = list(), # elemetos pré-CAT (opcional)
+  ...                                # demais parâmetros
+)
+```
+
+**df**: um objeto `data.frame` contendo os vetores de caracteres necessários para gerar perguntas da interface gráfica do usuário (GUI) por meio do `shiny`. Se fatores forem fornecidos no lugar de vetores de caracteres, os inputs serão convertidos usando a função `as.character()` (defina `stringsAsFactors = FALSE` ao criar um `data.frame` para evitar isso). Cada linha do objeto corresponde a um item único. O objeto suporta as seguintes combinações de nomes de colunas como entradas para especificar o tipo de formato de resposta, perguntas, opções, respostas e enunciados:
+
+-   **Type**: Indica o tipo de entrada de resposta a ser usado do pacote `shiny`. Os tipos suportados são:
+
+    -   `'radio'`: para botões de opção (radioButtons),
+    -   `'select'`: para uma caixa de seleção suspensa (selectInput),
+    -   `'rankselect'`: para ordenar entradas (selectInput),
+    -   `'text'` e `'textArea'`: para entradas de texto (textInput e textAreaInput),
+    -   `'checkbox'`: para permitir múltiplas respostas (checkboxGroupInput),
+    -   `'slider'`: para entradas deslizantes (sliderInput),
+    -   `'none'`: para apresentar apenas o enunciado do item, sem opções de seleção.
+
+    Caso nenhum desses tipos seja suficiente, é possível criar seus próprios formatos de resposta e entradas via a lista `customTypes`.
+
+-   **Question**: Um vetor de caracteres contendo todas as perguntas ou enunciados a serem gerados. Por padrão, esses vetores são passados para HTML, permitindo a inclusão direta de tags HTML. Por exemplo:
+
+    ``` r
+    Question = c('Este é o primeiro enunciado.', 'Este é o <em>segundo</em> enunciado.')
+    ```
+
+    Alternativamente, construtores de tags podem ser usados se preferidos, envolvendo-os em uma chamada para `as.character` para convertê-los em HTML adequado. Exemplo:
+
+    ``` r
+    Question = sapply(list('Primeiro enunciado.',
+    div('Este é o', em('segundo'), 'enunciado.')),
+    as.character)
+    ```
+
+-   **Option.#**: Nomes que se referem às opções de resposta possíveis para cada item, onde o `#` corresponde à categoria específica. Se algumas perguntas tiverem menos opções, NAs podem ser usados para opções que não se aplicam.
+
+-   **Answer ou Answer.# (Opcional)**: Um vetor de caracteres (ou múltiplos vetores) indicando as respostas corretas dos itens. Se não houver resposta correta para uma pergunta, o valor deve ser `NA`.
+
+-   **Forced (Opcional)**: Um vetor lógico indicando se o respondente é obrigado (`TRUE`) ou não (`FALSE`) a fornecer uma resposta. Se omitido, será automaticamente definido como `TRUE` para cada item. Em pesquisas, recomenda-se definir como `FALSE` para permitir que os respondentes deixem de responder a perguntas que possam ser desconfortáveis.
+
+-   **Stem (Opcional)**: Um vetor de caminhos absolutos ou relativos para arquivos externos em markdown (.md) ou HTML (.html) a serem usados como enunciados de itens. Use NAs para itens sem arquivos correspondentes.
+
+-   **Timer (Opcional)**: Um vetor numérico indicando o limite de tempo (em segundos) para cada item. O valor `NA` ou `Inf` indica que não há limite de tempo para os itens respectivos.
+
+-   **Mastery (Opcional)**: Um vetor lógico indicando se o item deve ser dominado antes de prosseguir, exigindo que uma ou mais respostas sejam fornecidas.
+
+-   **HTMLOptions (Opcional)**: Um vetor lógico indicando se os termos `Option.#` devem ser envoltos em uma função HTML e renderizados para entradas apropriadas do `shiny`.
+
+-   **...**: No caso de inputs deslizantes (`slider`), são necessários apenas os inputs `Question` e (pelo menos) as colunas `min`, `max`, e `step`, correspondendo aos argumentos de `sliderInput`. Outros argumentos como `step`, `round`, `pre`, `post`, `ticks`, `inline`, `placeholder`, `width`, e `size` também são suportados.
+
+**mo**: Um objeto de grupo único definido pela função `mirt::mirt()`. Este é necessário se o teste for avaliado adaptativa ou não adaptativamente, mas não é necessário para questionários gerais. O objeto pode ser construído usando a função `generate.mirt_object`, se os parâmetros da população forem conhecidos, ou incluindo um modelo calibrado estimado pela função `mirt` com dados reais.
+
+**method**: Argumento passado para `mirt::fscores()` para calcular novas pontuações na fase CAT, com a adição de uma entrada `'fixed'` para manter as estimativas do traço latente fixas nos valores anteriores. Quando `method = 'ML'`, se não houver variabilidade no padrão de resposta durante o CAT (ou seja, o participante está respondendo completamente certo ou completamente errado), o método será temporariamente definido como `MAP` até que haja variabilidade suficiente. O padrão é `'MAP'`.
+
+**criteria**: Critérios adaptativos usados. O padrão é administrar cada item sequencialmente com `criteria = 'seq'`. As opções para testes adaptativos unidimensionais incluem `'MI'` (máxima informação), `'MEPV'` (mínima variância posterior esperada), `'MLWI'`, `'MPWI'`, `'MEI'`, `'IKLP'`, `'IKL'`, `'IKLn'`, e `'IKLPn'`. Para testes adaptativos multidimensionais, as opções incluem `'Drule'`, `'Trule'`, `'Arule'`, `'Erule'`, `'Wrule'`, entre outras variações ponderadas.
+
+**start_item**: Pode ser um número indicando o item inicial ou uma string para selecionar o item com base nos critérios de seleção. O padrão é 1, selecionando o primeiro item.
+
+**local_pattern**: Uma matriz de caracteres/números contendo padrões de resposta usados para rodar a aplicação CAT sem gerar a interface GUI. Este objeto deve ser numérico, ou conter valores de resposta plausíveis.
+
+**AnswerFuns**: Uma lista de funções definidas pelo usuário para determinar se uma resposta está correta ou incorreta, retornando um valor lógico. Essas funções têm prioridade sobre as respostas fornecidas em `df`.
+
+**design_elements**: Um valor lógico que indica se o objeto contendo elementos do teste, da pessoa e do design deve ser retornado. Usado com a função `findNextItem`.
+
+**cl**: Um objeto passado para o pacote `parallel` para rodar em paralelo, o que ajuda a diminuir o tempo de simulação.
+
+**progress**: Um valor lógico que indica se uma barra de progresso deve ser impressa no console ao rodar simulações Monte Carlo.
+
+**primeCluster**: Um valor lógico. Se um objeto `cl` for fornecido, define se o cluster deve ser preparado antes de executar as simulações em paralelo.
+
+**customTypes**: Uma lista opcional contendo funções para a criação de estímulos gráficos originais (DOGS). Cada função deve retornar um objeto de entrada `shiny`.
+
+**design**: uma lista de parâmetros de controle baseados em design para testes adaptativos e não adaptativos.
+
+**shinyGUI**: Uma lista de parâmetros da interface GUI a serem sobrescritos.
+
+**preCAT**: Um objeto lista que pode ser utilizado para especificar um bloco pré-CAT, no qual diferentes propriedades do teste podem ser aplicadas antes de começar a sessão CAT. Se a lista estiver vazia, nenhum bloco pré-CAT será usado. Todos os seguintes elementos são necessários para usar o input `preCAT`:
+
+-   **min_items**: Número mínimo de itens a serem administrados antes de começar a sessão CAT. O padrão é `0`.
+
+-   **max_items**: Número máximo de itens a serem administrados antes de começar a sessão CAT. Um valor maior que `0` é necessário para rodar o estágio pré-CAT.
+
+-   **criteria**: Critério de seleção (ver critérios explicados anteriormente). O padrão é `'random'`.
+
+-   **method**: Critério de estimativa (ver métodos explicados anteriormente). Geralmente, recomenda-se selecionar um método que possa lidar com padrões de resposta "tudo ou nada", como `'EAP'`, `'MAP'`, ou `'WLE'`. O padrão é `'MAP'`.
+
+-   **response_variance**: Valor lógico; determina se o estágio pré-CAT deve terminar quando houver variabilidade no padrão de respostas (ou seja, quando a estimativa de máxima verossimilhança tiver um ótimo potencial). O padrão é `FALSE`.
+
+**...**: Argumentos adicionais que podem ser passados para as funções `mirt`, `fscores`, `runApp` ou `lattice`.
+
+**x**: Objeto da classe `'mirtCAT'`.
+
+**object**: Objeto da classe `'mirtCAT'`.
+
+**sort**: Valor lógico; determina se os padrões de resposta devem ser ordenados com base na ordem em que foram administrados. Se for `FALSE`, os padrões de resposta brutos contendo NAs serão retornados para os itens que não foram administrados.
+
+**pick_theta**: Um número que indica qual theta deve ser plotado (aplicável apenas para testes multidimensionais). O padrão é facetar cada theta em um único gráfico. Para plotar apenas o primeiro fator, passe `pick_theta = 1`.
+
+**true_thetas**: Valor lógico; inclui uma linha horizontal indicando onde estão os valores de theta a nível populacional. Aplicável apenas a simulações de Monte Carlo, pois esse valor não seria conhecido de outra forma.
+
+**SE**: Tamanho dos erros padrão a serem plotados. O padrão é `1`, o que, portanto, plota o erro padrão. Para obter o intervalo de 95%, use `SE = 1.96` (da distribuição z).
+
+**main**: Título do gráfico. O padrão será 'CAT Standard Errors' ou 'CAT ##% Confidence Intervals', dependendo da entrada de `SE`.
+
+**par.strip.text**: Argumento de plotagem passado para o lattice.
+
+**par.settings**: Argumento de plotagem passado para o lattice.
+
+**scales**: Argumento de plotagem passado para o lattice.
+
+## Valores resultantes após a execução
+
+Aqui estão os detalhes dos elementos contidos na lista do objeto da classe 'Person', que são retornados após a aplicação do teste:
+
+-   **raw_responses**: Um vetor de caracteres que indica as respostas brutas aos respectivos itens, onde `NA` indica que o item não foi respondido.
+
+-   **scored_responses**: Um vetor de inteiros com as respostas pontuadas, se a entrada `item_answers` foi utilizada para cada item correspondente.
+
+-   **items_answered**: Um vetor de inteiros indicando a ordem em que os itens foram respondidos.
+
+-   **thetas**: Um vetor numérico que indica as estimativas finais de theta.
+
+-   **SE_thetas**: Um vetor numérico que indica os erros padrão das estimativas finais de theta.
+
+-   **thetas_history**: Uma matriz que indica a progressão da atualização dos valores de theta durante o teste.
+
+-   **thetas_SE_history**: Uma matriz que indica os erros padrão para theta após cada item sucessivamente respondido.
+
+-   **item_time**: Um vetor numérico que indica quanto tempo o respondente levou para responder a cada pergunta (em segundos).
+
+-   **demographics**: Um objeto de data.frame contendo as informações coletadas na primeira página da interface Shiny. Isso é utilizado para armazenar as informações demográficas de cada participante.
+
+-   **classification**: Um vetor de caracteres que indica se os traços podem ser classificados como "acima" ou "abaixo" dos limites desejados.
+
+Aqui estão os detalhes sobre os arquivos de ajuda em HTML, exercícios e exemplos relacionados ao pacote `mirtCAT`, bem como informações sobre como modificar diretamente o objeto de design através da função `customNextItem()`:
+
+## Acesso a Ajuda e Exemplos
+
+Para acessar exemplos, vinhetas e arquivos de exercícios gerados com `knitr`, visite: [mirtCAT Wiki](https://github.com/philchalmers/mirtCAT/wiki).
+
+### Modificação do Objeto de Design (Avançado)
+
+Além de fornecer um mapa de seleção de itens completamente definido por meio da função `customNextItem()`, os usuários podem desejar controlar alguns elementos mais detalhados do objeto de design para ajustar os parâmetros de controle geral do CAT (por exemplo, modificar o número máximo de itens a serem administrados, interromper o CAT se algo peculiar for detectado nos padrões de resposta, etc.).
+
+**Observação**: Este recurso é raramente necessário para a maioria das aplicações, embora usuários mais avançados possam querer modificar esses vários elementos de baixo nível do objeto de design diretamente para alterar o fluxo do CAT de acordo com suas necessidades específicas.
+
+#### Diferenças entre Objetos
+
+-   O objeto `person` é definido como uma **Classe de Referência** (veja `setRefClass`), permitindo que suas instâncias sejam mutáveis.
+-   O objeto `design`, por outro lado, é geralmente considerado uma classe **S4 fixa**, significando que seus elementos não são mutáveis.
+
+#### Passos para Modificação do Objeto de Design
+
+Para fazer alterações diretamente no objeto de design, os usuários devem seguir estes passos:
+
+1.  Dentro da função `customNextItem` definida, os slots do objeto de design são modificados (por exemplo, `design@max_items <- 20L`).
+2.  Juntamente com o valor escalar do próximo item desejado da função `customNextItem()`, o objeto escalar também deve conter um atributo com o nome 'design', que armazena o novo objeto de design definido (por exemplo, `attr(ret, 'design') <- design; return(ret)`).
