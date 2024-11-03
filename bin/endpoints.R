@@ -12,11 +12,26 @@ function() {
 #* @post /start-assessment
 function(req) {
   questions <- req$body$questions
-  pattern_theta <- req$body$pattern_theta
-  criteria <- req$body$criteria
-  start_item <- req$body$start_item
-  design <- req$body$design
-  
+  config <- req$body$config
+
+  type <- config$type
+  start_item <- config$start_item
+  criteria <- config$criteria
+
+  min_sem <- config$min_sem
+  delta_thetas <- config$delta_thetas
+  thetas_start <- config$thetas_start
+  pattern_theta <- config$pattern_theta
+
+  min_items <- config$min_items
+  max_items <- config$max_items
+  max_time <- ifelse(
+    config$max_time != NULL,
+    config$max_time,
+    Inf
+  )
+  # design <- req$body$design # this
+
   # create mirt object
   irt_params <- build_irt_parameters(
     discrimination_list = questions$discrimination,
@@ -35,7 +50,13 @@ function(req) {
     pattern_theta = pattern_theta, 
     criteria = criteria, 
     start_item = start_item,
-    design = design 
+    min_SEM = min_sem,
+    delta_thetas = delta_thetas,
+    thetas_start = thetas_start,
+    min_items = min_items,
+    max_items = max_items,
+    max_time = max_time,
+    # design = design 
   )
   
   next_index <- mirtCAT::findNextItem(cat_design)
