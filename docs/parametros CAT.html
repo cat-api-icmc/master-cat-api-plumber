@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.4.553">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Documentação do mirtCAT</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="parametros CAT_files/libs/clipboard/clipboard.min.js"></script>
+<script src="parametros CAT_files/libs/quarto-html/quarto.js"></script>
+<script src="parametros CAT_files/libs/quarto-html/popper.min.js"></script>
+<script src="parametros CAT_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="parametros CAT_files/libs/quarto-html/anchor.min.js"></script>
+<link href="parametros CAT_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="parametros CAT_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="parametros CAT_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="parametros CAT_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="parametros CAT_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="fullcontent">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Documentação do mirtCAT</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="função-mirtcat" class="level1">
+<h1>Função <code>mirtCAT()</code></h1>
+<p>A função <code>mirtCAT()</code> fornece ferramentas para gerar uma interface HTML para criar testes educacionais e psicológicos, adaptativos e não adaptativos, usando o pacote <code>shiny</code>. Adequado para a aplicação de testes adaptativos computadorizados unidimensionais e multidimensionais utilizando a metodologia da Teoria de Resposta ao Item (TRI). A pontuação dos testes é realizada usando o pacote <code>mirt</code>. No entanto, se nenhuma pontuação for necessária (ou seja, um questionário padrão), a definição de um objeto <code>mirt</code> pode ser omitida.</p>
+<p>Aqui estão os detalhes dos critérios relacionados ao funcionamento dos testes:</p>
+<ul>
+<li><p><strong>Critério de Parada</strong>: Todos os testes serão interrompidos assim que o critério <code>min_SEM</code> for alcançado ou quando uma classificação acima ou abaixo dos limites especificados puder ser feita.</p></li>
+<li><p><strong>Respostas Obrigatórias</strong>: Se todos os itens devem ser respondidos, os usuários devem especificar um valor <code>min_SEM</code> extremamente pequeno ou, de maneira equivalente, um critério <code>min_items</code> elevado na entrada da lista de design.</p></li>
+</ul>
+<p>Esses critérios garantem que o teste atenda a um padrão mínimo de precisão (SEM - erro padrão da medida) antes de decidir se deve continuar ou encerrar o processo de teste.</p>
+<section id="design" class="level2">
+<h2 class="anchored" data-anchor-id="design">Design</h2>
+<p>O parâmetro de <strong>Design</strong> na função mirt é uma lista de parâmetros de controle baseados no design para testes adaptativos e não adaptativos.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>nfact <span class="ot">&lt;-</span> <span class="dv">1</span> <span class="co"># número de dimensões do teste</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>design <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">min_SEM                =</span> <span class="fu">rep</span>(<span class="fl">0.3</span>, nfact), <span class="co"># critério de parada</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">delta_thetas           =</span> <span class="fu">rep</span>(<span class="dv">0</span>, nfact),   <span class="co"># critério de parada</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">thetas.start           =</span> <span class="fu">rep</span>(<span class="dv">0</span>, nfact),   <span class="co"># chute inicial</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">min_items              =</span> <span class="dv">1</span>,               <span class="co"># critério de parada</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">max_items              =</span> <span class="dv">1</span>,               <span class="co"># critério de parada (opcional)</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">max_time               =</span> <span class="cn">Inf</span>,             <span class="co"># critério de parada </span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">quadpts                =</span> <span class="cn">NULL</span>,            <span class="co"># cálculo de proficiência (opcional)</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">theta_range            =</span> <span class="fu">c</span>(<span class="sc">-</span><span class="dv">6</span>,<span class="dv">6</span>),         <span class="co"># cálculo de proficiência (opcional)</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>  <span class="at">allow_constrain_breaks =</span> F,               <span class="co"># critério de parada (opcional)</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>  <span class="at">weights                =</span> <span class="fu">rep</span>(<span class="dv">1</span>, nfact),   <span class="co"># critério de seleção de itens (opcional)</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>  <span class="at">KL_delta               =</span> <span class="fl">0.1</span>,             <span class="co"># critério de seleção de itens (opcional)</span></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>  <span class="at">content                =</span> <span class="cn">NULL</span>,            <span class="co"># controle de conteúdo (opcional)</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>  <span class="at">content_prop           =</span> <span class="cn">NULL</span>,            <span class="co"># controle de conteúdo (opcional)</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>  <span class="at">classify               =</span> <span class="cn">NULL</span>,            <span class="co"># critério de parada (opcional)</span></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>  <span class="at">classify_CI            =</span> <span class="cn">NULL</span>,            <span class="co"># critério de parada (opcional)</span></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>  <span class="at">sprt_lower             =</span> <span class="cn">NULL</span>,            <span class="co"># critério de parada (opcional)</span></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>  <span class="at">sprt_upper             =</span> <span class="cn">NULL</span>,            <span class="co"># critério de parada (opcional)</span></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>  <span class="at">sprt_alpha             =</span> <span class="cn">NULL</span>,            <span class="co"># critério de parada (opcional)</span></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>  <span class="at">sprt_beta              =</span> <span class="cn">NULL</span>,            <span class="co"># critério de parada (opcional)</span></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>  <span class="at">sprt_beta              =</span> <span class="cn">NULL</span>,            <span class="co"># controle de exposição (opcional)</span></span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>  <span class="at">constraints            =</span> <span class="cn">NULL</span>,            <span class="co"># critério de seleção de itens (opcional)</span></span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>  <span class="at">customUpdateThetas     =</span> <span class="cn">NULL</span>,            <span class="co"># cálculo de proficiência (opcional)</span></span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>  <span class="at">customNextItem         =</span> <span class="cn">NULL</span>,            <span class="co"># critério de seleção de itens (opcional)</span></span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>  <span class="at">constr_fun             =</span> <span class="cn">NULL</span>,            <span class="co"># critério de seleção de itens (opcional)</span></span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>  <span class="at">test_properties        =</span> <span class="cn">NULL</span>,            <span class="co"># critério de seleção de itens (opcional) </span></span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>  <span class="at">person_properties      =</span> <span class="cn">NULL</span>             <span class="co"># critério de seleção de itens (opcional) </span></span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p><strong>min_SEM</strong>: O padrão é <code>rep(0.3, nfact)</code>; erro padrão mínimo de medição a ser alcançado para os traços latentes (thetas) antes que o teste seja interrompido. Se o teste for multidimensional, pode ser fornecido um único valor ou um vetor de valores para definir os critérios de SEM para cada dimensão.</p>
+<p><strong>delta_thetas</strong>: O padrão é <code>rep(0, nfact)</code>; critério de parada baseado na mudança nos valores dos traços latentes (por exemplo, uma mudança de theta = 1.5 para theta = 1.54 pararia o CAT se <code>delta_thetas = 0.05</code>). O padrão desabilita este critério de parada.</p>
+<p><strong>thetas.start</strong>: Um vetor numérico de valores iniciais para os parâmetros theta (o padrão é <code>rep(0, nfact)</code>) ou uma matriz com N linhas e nfact colunas, onde N é igual a <code>nrow(local_pattern)</code>.</p>
+<p><strong>min_items</strong>: Número mínimo de itens que devem ser respondidos antes que o teste seja interrompido. O padrão é 1.</p>
+<p><strong>max_items</strong>: Número máximo de itens que podem ser respondidos. O padrão é o comprimento do banco de itens.</p>
+<p><strong>max_time</strong>: Tempo máximo permitido para a interface gráfica gerada, medido em segundos. Por exemplo, se o teste deve parar após 10 minutos, o número 600 deve ser passado (10 * 60). O padrão é <code>Inf</code>, portanto, sem limite de tempo.</p>
+<p><strong>quadpts</strong>: Número de pontos de quadratura usados por dimensão para integração (se necessário). O padrão é idêntico ao esquema em <code>fscores</code>.</p>
+<p><strong>theta_range</strong>: Intervalo superior e inferior para a grade de integração theta. Usado em conjunto com <code>quadpts</code> para gerar uma grade de quadratura igualmente espaçada. O padrão é <code>c(-6,6)</code>.</p>
+<p><strong>allow_constrain_breaks</strong>: Lógico; o teste deve ser permitido a terminar no meio da administração dos itens em um conjunto de testes (não) ordenado especificado em <code>constraints</code>? O padrão é <code>FALSE</code>.</p>
+<p><strong>weights</strong>: Pesos usados quando <code>criteria == 'Wrule'</code>, mas também serão aplicados para funções de traço ponderadas nas regras T e A. O padrão atribui pesos iguais às dimensões latentes. O padrão é <code>rep(1, nfact)</code>, onde <code>nfact</code> é o número de dimensões do teste.</p>
+<p><strong>KL_delta</strong>: Intervalo utilizado quando <code>criteria = 'KL'</code> ou <code>criteria = 'KLn'</code>. O padrão é 0,1.</p>
+<p><strong>content</strong>: Um vetor de caracteres opcional indicando o tipo de conteúdo medido por um item. Deve ser fornecido em conjunto com <code>content_prop</code>.</p>
+<p><strong>content_prop</strong>: Um vetor numérico opcional nomeado, indicando a distribuição das proporções de conteúdo dos itens. Um vetor <code>content</code> também deve ser fornecido para indicar a classificação do conteúdo dos itens. Por exemplo, se o <code>content</code> contiver três possíveis domínios de conteúdo de itens: ‘Adição’, ‘Subtração’ e ‘Multiplicação’, e o teste deve conter aproximadamente metade de multiplicação e um quarto de adição e subtração, então uma entrada adequada seria:</p>
+<p><code>content_prop = c('Addition'=0.25, 'Subtraction'=0.25, 'Multiplication'=.5)</code></p>
+<p>Observe que <code>content_prop</code> deve somar 1 para representar proporções populacionais válidas.</p>
+<p><strong>classify</strong>: Um vetor numérico indicando o(s) valor(es) limite para classificação acima ou abaixo de algum limiar anterior. O padrão não utiliza o esquema de classificação.</p>
+<p><strong>classify_CI</strong>: Um vetor numérico indicando os intervalos de confiança usados para classificar indivíduos acima ou abaixo dos valores em <code>classify</code>. Os valores devem estar entre 0 e 1 (por exemplo, 0,95 dá 95% de intervalo de confiança).</p>
+<p><strong>sprt_lower</strong>: Um vetor numérico indicando valores limite inferiores para classificação acima ou abaixo de algum limiar anterior usando o teste de razão de probabilidade sequencial. O padrão não utiliza o esquema de classificação.</p>
+<p><strong>sprt_upper</strong>: Um vetor numérico indicando valores limite superiores para classificação acima ou abaixo de algum limiar anterior usando o teste de razão de probabilidade sequencial. O padrão não utiliza o esquema de classificação.</p>
+<p><strong>sprt_alpha</strong>: Um vetor numérico indicando a taxa de erro do limite inferior a ser usada para o SPRT. O padrão é 0,05.</p>
+<p><strong>sprt_beta</strong>: Um vetor numérico indicando a taxa de erro do limite superior a ser usada para o SPRT. O padrão é 0,05.</p>
+<p><strong>exposure</strong>: Um vetor numérico especificando a quantidade de controle de exposição a ser aplicada para cada item sucessivo (o comprimento deve ser igual ao número de itens). Observe que isso inclui o primeiro item também quando um critério de seleção é especificado; portanto, se um item específico deve ser usado como o primeiro item, o primeiro elemento de <code>exposure</code> deve ser 1. O padrão não usa controle de exposição.</p>
+<p>Se a exposição de um item for maior que 1, então os n critérios mais ótimos serão selecionados aleatoriamente. Por exemplo, se <code>exposure[5] == 3</code>, e <code>criteria = 'MI'</code>, então, quando o quinto item for selecionado do conjunto restante, os 3 itens candidatos principais que demonstram o maior critério de informação serão selecionados aleatoriamente. Naturalmente, os primeiros e últimos elementos de <code>exposure</code> são ignorados, pois o controle de exposição será irrelevante.</p>
+<p>Se todos os elementos de <code>exposure</code> estiverem entre 0 e 1, então o método de controle de exposição Sympson-Hetter será implementado. Neste método, um item é administrado apenas se passar em uma simulação de probabilidade; caso contrário, ele é removido do conjunto de itens. Valores mais próximos de 1 têm maior probabilidade de aparecer no teste, enquanto valores mais próximos de 0 têm maior probabilidade de serem descartados aleatoriamente.</p>
+<p><strong>constraints</strong>: Uma lista nomeada declarando várias restrições de seleção de itens para determinados itens, onde cada elemento da lista é um vetor de números de itens. A menos que seja especificado, múltiplos elementos podem ser declarados (por exemplo, <code>list(ordered = c(1:5), ordered = c(7:9))</code> é perfeitamente aceitável). Estes incluem:</p>
+<ul>
+<li><p><strong>not_scored</strong>: Declaração de itens que podem ser selecionados, mas não serão usados na pontuação do CAT. Isso é principalmente útil ao incluir itens experimentais para futuros CATs. Apenas um vetor de elementos <code>not_scored</code> pode ser fornecido.</p></li>
+<li><p><strong>excluded</strong>: Itens que não devem aparecer na sessão (útil ao re-testar participantes que já viram alguns dos itens). Apenas um vetor de elementos <code>excluded</code> pode ser fornecido.</p></li>
+<li><p><strong>independent</strong>: Declaração de quais itens nunca devem aparecer na mesma sessão CAT. Use isso se, por exemplo, o item 1 e o item 10 tiverem perguntas muito semelhantes e, portanto, não devem aparecer na mesma sessão.</p></li>
+<li><p><strong>ordered</strong>: Se um item for selecionado durante o CAT, administre este grupo específico de itens na ordem de acordo com a sequência especificada.</p></li>
+<li><p><strong>unordered</strong>: Semelhante ao <code>ordered</code>, exceto que os itens do grupo serão selecionados aleatoriamente até que o grupo esteja completo.</p></li>
+</ul>
+<p><strong>customUpdateThetas</strong>: Uma função mais avançada na forma <code>customUpdateThetas &lt;- function(design, person, test)</code> para atualizar as estimativas de habilidades/traços latentes ao longo da sessão do CAT (ou mais geralmente, da pontuação).</p>
+<p>Por exemplo, uma função mínima funcional seria assim (observe o uso de <code>rbind()</code> para adicionar os termos históricos no objeto <code>person</code>):</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>myfun <span class="ot">&lt;-</span> <span class="cf">function</span>(design, person, test){</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    mo <span class="ot">&lt;-</span> <span class="fu">extract.mirtCAT</span>(test, <span class="st">'mo'</span>)</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    responses <span class="ot">&lt;-</span> <span class="fu">extract.mirtCAT</span>(person, <span class="st">'responses'</span>)</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    tmp <span class="ot">&lt;-</span> <span class="fu">fscores</span>(mo, <span class="at">response.pattern =</span> responses)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    person<span class="sc">$</span><span class="fu">Update_thetas</span>(tmp[,<span class="st">'F1'</span>],</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>                         tmp[,<span class="st">'SE_F1'</span>, <span class="at">drop=</span><span class="cn">FALSE</span>])</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">invisible</span>()</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p><strong>customNextItem</strong>: Uma função mais avançada na forma <code>customNextItem &lt;- function(design, person, test)</code> para usar um método personalizado de seleção de itens. Isso requer programação mais complexa e compreensão dos elementos internos do <code>mirtCAT</code>, e é recomendado inicialmente usar um navegador para entender o estado dos argumentos de entrada. Quando definida, todas as entradas na lista de restrições opcionais, exceto <code>not_scored</code>, serão ignoradas.</p>
+<p>Use essa função se você desejar programar explicitamente suas técnicas de seleção de itens, embora isso possa ser combinado com a função interna <code>findNextItem</code> com entradas análogas. A função deve retornar um único valor inteiro indicando o próximo item a ser administrado ou um valor <code>NA</code> para indicar que o teste deve ser encerrado. Veja <code>extract.mirtCAT</code> para detalhes sobre como extrair e manipular vários elementos internos dos argumentos funcionais exigidos.</p>
+<p><strong>constr_fun</strong>: (AVISO: fornecer essa função desativará várias das restrições heurísticas de seleção de itens na lista de restrições; a saber, todas as opções da lista, exceto “not_scored”).</p>
+<p>Este argumento contém uma função opcional definida pelo usuário na forma <code>function(design, person, test)</code> que retorna um <code>data.frame</code> contendo o lado esquerdo, a relação e o lado direito das restrições para <code>lp</code>. Cada linha corresponde a uma restrição, enquanto o número de colunas deve ser igual ao número de itens, mais 2. Observe que os nomes das colunas do objeto <code>data.frame</code> retornado não são importantes.</p>
+<p>Por exemplo, suponha que para um dado teste o usuário queira adicionar a restrição de que exatamente 10 itens devem ser administrados a todos os participantes, e que os itens 1 e 2 não devem ser incluídos no mesmo teste. A entrada seria definida como:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>const_fun <span class="ot">&lt;-</span> <span class="cf">function</span>(design, person, test){</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    nitems <span class="ot">&lt;-</span> <span class="fu">extract.mirt</span>(test<span class="sc">@</span>mo, <span class="st">'nitems'</span>)</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    lhs <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="dv">0</span>, <span class="dv">2</span>, nitems)</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    lhs[<span class="dv">1</span>, ] <span class="ot">&lt;-</span> <span class="dv">1</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    lhs[<span class="dv">2</span>, <span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">2</span>)] <span class="ot">&lt;-</span> <span class="dv">1</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">data.frame</span>(<span class="at">item=</span>lhs, <span class="at">relation=</span><span class="fu">c</span>(<span class="st">"=="</span>, <span class="st">"&lt;="</span>), <span class="at">value=</span><span class="fu">c</span>(<span class="dv">10</span>, <span class="dv">1</span>))</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>A definição acima corresponde às restrições <code>1 * x1 + 1 * x2 + ... + 1 * xn = 10</code> e <code>1 * x1 + 1 * x2 + 0 * x3 + ... + 0 * xn &lt;= 1</code>, onde os termos <code>x</code> representam indicadores binários para cada respectivo item, que o otimizador está buscando. Dado algum vetor objetivo fornecido a <code>findNextItem</code>, os 10 itens mais otimizados serão selecionados, atendendo a essas duas restrições, significando que 1) exatamente 10 itens serão administrados, e 2) se o item 1 ou 2 forem selecionados, esses dois itens nunca aparecerão no mesmo formulário de teste (embora nenhum seja forçado a aparecer em qualquer teste). Veja <code>findNextItem</code> para mais detalhes e exemplos.</p>
+<p><strong>test_properties</strong>: Um objeto <code>data.frame</code> definido pelo usuário para ser usado com uma função <code>customNextItem</code> fornecida. Isso deve ser usado para definir propriedades específicas inerentes aos itens do teste (por exemplo, se são experimentais, têm um esquema de ponderação particular, devem ser usados apenas para um grupo específico de indivíduos, e assim por diante). O número de linhas deve ser igual ao número de itens no banco de itens, e cada linha corresponde ao respectivo item. Essa entrada aparece no objeto de design interno em um slot <code>test_properties</code>.</p>
+<p><strong>person_properties</strong>: Um objeto <code>data.frame</code> definido pelo usuário para ser usado com uma função <code>customNextItem</code> fornecida. Isso deve ser usado para definir propriedades específicas inerentes aos participantes (por exemplo, variáveis de agrupamento conhecidas, idade, se já fizeram o teste antes (e quais itens responderam), e assim por diante). Em simulações off-line, o número de linhas deve ser igual ao número de participantes. Essa entrada aparece no objeto de design interno em um slot <code>person_properties</code>; para simulações de Monte Carlo, as linhas devem ser indexadas manualmente usando o slot <code>person$ID</code>.</p>
+</section>
+<section id="parâmetros-gerais" class="level2">
+<h2 class="anchored" data-anchor-id="parâmetros-gerais">Parâmetros Gerais</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mirtCAT</span>(</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">df                       =</span> <span class="cn">NULL</span>,   <span class="co"># banco de itens</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">mo                       =</span> <span class="cn">NULL</span>,   <span class="co"># objeto mirt</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">method                   =</span> <span class="st">"MAP"</span>,  <span class="co"># cálculo de proficiência </span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">criteria                 =</span> <span class="st">"seq"</span>,  <span class="co"># critério de seleção de itens</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">start_item               =</span> <span class="dv">1</span>,      <span class="co"># critério de seleção de itens</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">local_pattern            =</span> <span class="cn">NULL</span>,   <span class="co"># respostas </span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">AnswerFuns               =</span> <span class="fu">list</span>(), <span class="co"># função para correção de respostas (opcional)</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">design_elements          =</span> <span class="cn">FALSE</span>,  <span class="co"># indicador de retorno de informações do CAT</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">cl                       =</span> <span class="cn">NULL</span>,   <span class="co"># controle de paralelismo (opcional)</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">progress                 =</span> <span class="cn">FALSE</span>,  <span class="co"># barra de progresso da simulação (opcional)</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>  <span class="at">primeCluster             =</span> <span class="cn">TRUE</span>,   <span class="co"># controle de paralelismo (opcional)</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>  <span class="at">customTypes              =</span> <span class="fu">list</span>(), <span class="co"># elemetros gráficos (opcional)</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>  <span class="at">design                   =</span> <span class="fu">list</span>(), <span class="co"># configurações do teste </span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>  <span class="at">shinyGUI                 =</span> <span class="fu">list</span>(), <span class="co"># elemetros gráficos (opcional)</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>  <span class="at">preCAT                   =</span> <span class="fu">list</span>(), <span class="co"># elemetos pré-CAT (opcional)</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>  ...                                <span class="co"># demais parâmetros</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p><strong>df</strong>: um objeto <code>data.frame</code> contendo os vetores de caracteres necessários para gerar perguntas da interface gráfica do usuário (GUI) por meio do <code>shiny</code>. Se fatores forem fornecidos no lugar de vetores de caracteres, os inputs serão convertidos usando a função <code>as.character()</code> (defina <code>stringsAsFactors = FALSE</code> ao criar um <code>data.frame</code> para evitar isso). Cada linha do objeto corresponde a um item único. O objeto suporta as seguintes combinações de nomes de colunas como entradas para especificar o tipo de formato de resposta, perguntas, opções, respostas e enunciados:</p>
+<ul>
+<li><p><strong>Type</strong>: Indica o tipo de entrada de resposta a ser usado do pacote <code>shiny</code>. Os tipos suportados são:</p>
+<ul>
+<li><code>'radio'</code>: para botões de opção (radioButtons),</li>
+<li><code>'select'</code>: para uma caixa de seleção suspensa (selectInput),</li>
+<li><code>'rankselect'</code>: para ordenar entradas (selectInput),</li>
+<li><code>'text'</code> e <code>'textArea'</code>: para entradas de texto (textInput e textAreaInput),</li>
+<li><code>'checkbox'</code>: para permitir múltiplas respostas (checkboxGroupInput),</li>
+<li><code>'slider'</code>: para entradas deslizantes (sliderInput),</li>
+<li><code>'none'</code>: para apresentar apenas o enunciado do item, sem opções de seleção.</li>
+</ul>
+<p>Caso nenhum desses tipos seja suficiente, é possível criar seus próprios formatos de resposta e entradas via a lista <code>customTypes</code>.</p></li>
+<li><p><strong>Question</strong>: Um vetor de caracteres contendo todas as perguntas ou enunciados a serem gerados. Por padrão, esses vetores são passados para HTML, permitindo a inclusão direta de tags HTML. Por exemplo:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>Question <span class="ot">=</span> <span class="fu">c</span>(<span class="st">'Este é o primeiro enunciado.'</span>, <span class="st">'Este é o &lt;em&gt;segundo&lt;/em&gt; enunciado.'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Alternativamente, construtores de tags podem ser usados se preferidos, envolvendo-os em uma chamada para <code>as.character</code> para convertê-los em HTML adequado. Exemplo:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>Question <span class="ot">=</span> <span class="fu">sapply</span>(<span class="fu">list</span>(<span class="st">'Primeiro enunciado.'</span>,</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="fu">div</span>(<span class="st">'Este é o'</span>, <span class="fu">em</span>(<span class="st">'segundo'</span>), <span class="st">'enunciado.'</span>)),</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>as.character)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
+<li><p><strong>Option.#</strong>: Nomes que se referem às opções de resposta possíveis para cada item, onde o <code>#</code> corresponde à categoria específica. Se algumas perguntas tiverem menos opções, NAs podem ser usados para opções que não se aplicam.</p></li>
+<li><p><strong>Answer ou Answer.# (Opcional)</strong>: Um vetor de caracteres (ou múltiplos vetores) indicando as respostas corretas dos itens. Se não houver resposta correta para uma pergunta, o valor deve ser <code>NA</code>.</p></li>
+<li><p><strong>Forced (Opcional)</strong>: Um vetor lógico indicando se o respondente é obrigado (<code>TRUE</code>) ou não (<code>FALSE</code>) a fornecer uma resposta. Se omitido, será automaticamente definido como <code>TRUE</code> para cada item. Em pesquisas, recomenda-se definir como <code>FALSE</code> para permitir que os respondentes deixem de responder a perguntas que possam ser desconfortáveis.</p></li>
+<li><p><strong>Stem (Opcional)</strong>: Um vetor de caminhos absolutos ou relativos para arquivos externos em markdown (.md) ou HTML (.html) a serem usados como enunciados de itens. Use NAs para itens sem arquivos correspondentes.</p></li>
+<li><p><strong>Timer (Opcional)</strong>: Um vetor numérico indicando o limite de tempo (em segundos) para cada item. O valor <code>NA</code> ou <code>Inf</code> indica que não há limite de tempo para os itens respectivos.</p></li>
+<li><p><strong>Mastery (Opcional)</strong>: Um vetor lógico indicando se o item deve ser dominado antes de prosseguir, exigindo que uma ou mais respostas sejam fornecidas.</p></li>
+<li><p><strong>HTMLOptions (Opcional)</strong>: Um vetor lógico indicando se os termos <code>Option.#</code> devem ser envoltos em uma função HTML e renderizados para entradas apropriadas do <code>shiny</code>.</p></li>
+<li><p><strong>…</strong>: No caso de inputs deslizantes (<code>slider</code>), são necessários apenas os inputs <code>Question</code> e (pelo menos) as colunas <code>min</code>, <code>max</code>, e <code>step</code>, correspondendo aos argumentos de <code>sliderInput</code>. Outros argumentos como <code>step</code>, <code>round</code>, <code>pre</code>, <code>post</code>, <code>ticks</code>, <code>inline</code>, <code>placeholder</code>, <code>width</code>, e <code>size</code> também são suportados.</p></li>
+</ul>
+<p><strong>mo</strong>: Um objeto de grupo único definido pela função <code>mirt::mirt()</code>. Este é necessário se o teste for avaliado adaptativa ou não adaptativamente, mas não é necessário para questionários gerais. O objeto pode ser construído usando a função <code>generate.mirt_object</code>, se os parâmetros da população forem conhecidos, ou incluindo um modelo calibrado estimado pela função <code>mirt</code> com dados reais.</p>
+<p><strong>method</strong>: Argumento passado para <code>mirt::fscores()</code> para calcular novas pontuações na fase CAT, com a adição de uma entrada <code>'fixed'</code> para manter as estimativas do traço latente fixas nos valores anteriores. Quando <code>method = 'ML'</code>, se não houver variabilidade no padrão de resposta durante o CAT (ou seja, o participante está respondendo completamente certo ou completamente errado), o método será temporariamente definido como <code>MAP</code> até que haja variabilidade suficiente. O padrão é <code>'MAP'</code>.</p>
+<p><strong>criteria</strong>: Critérios adaptativos usados. O padrão é administrar cada item sequencialmente com <code>criteria = 'seq'</code>. As opções para testes adaptativos unidimensionais incluem <code>'MI'</code> (máxima informação), <code>'MEPV'</code> (mínima variância posterior esperada), <code>'MLWI'</code>, <code>'MPWI'</code>, <code>'MEI'</code>, <code>'IKLP'</code>, <code>'IKL'</code>, <code>'IKLn'</code>, e <code>'IKLPn'</code>. Para testes adaptativos multidimensionais, as opções incluem <code>'Drule'</code>, <code>'Trule'</code>, <code>'Arule'</code>, <code>'Erule'</code>, <code>'Wrule'</code>, entre outras variações ponderadas.</p>
+<p><strong>start_item</strong>: Pode ser um número indicando o item inicial ou uma string para selecionar o item com base nos critérios de seleção. O padrão é 1, selecionando o primeiro item.</p>
+<p><strong>local_pattern</strong>: Uma matriz de caracteres/números contendo padrões de resposta usados para rodar a aplicação CAT sem gerar a interface GUI. Este objeto deve ser numérico, ou conter valores de resposta plausíveis.</p>
+<p><strong>AnswerFuns</strong>: Uma lista de funções definidas pelo usuário para determinar se uma resposta está correta ou incorreta, retornando um valor lógico. Essas funções têm prioridade sobre as respostas fornecidas em <code>df</code>.</p>
+<p><strong>design_elements</strong>: Um valor lógico que indica se o objeto contendo elementos do teste, da pessoa e do design deve ser retornado. Usado com a função <code>findNextItem</code>.</p>
+<p><strong>cl</strong>: Um objeto passado para o pacote <code>parallel</code> para rodar em paralelo, o que ajuda a diminuir o tempo de simulação.</p>
+<p><strong>progress</strong>: Um valor lógico que indica se uma barra de progresso deve ser impressa no console ao rodar simulações Monte Carlo.</p>
+<p><strong>primeCluster</strong>: Um valor lógico. Se um objeto <code>cl</code> for fornecido, define se o cluster deve ser preparado antes de executar as simulações em paralelo.</p>
+<p><strong>customTypes</strong>: Uma lista opcional contendo funções para a criação de estímulos gráficos originais (DOGS). Cada função deve retornar um objeto de entrada <code>shiny</code>.</p>
+<p><strong>design</strong>: uma lista de parâmetros de controle baseados em design para testes adaptativos e não adaptativos.</p>
+<p><strong>shinyGUI</strong>: Uma lista de parâmetros da interface GUI a serem sobrescritos.</p>
+<p><strong>preCAT</strong>: Um objeto lista que pode ser utilizado para especificar um bloco pré-CAT, no qual diferentes propriedades do teste podem ser aplicadas antes de começar a sessão CAT. Se a lista estiver vazia, nenhum bloco pré-CAT será usado. Todos os seguintes elementos são necessários para usar o input <code>preCAT</code>:</p>
+<ul>
+<li><p><strong>min_items</strong>: Número mínimo de itens a serem administrados antes de começar a sessão CAT. O padrão é <code>0</code>.</p></li>
+<li><p><strong>max_items</strong>: Número máximo de itens a serem administrados antes de começar a sessão CAT. Um valor maior que <code>0</code> é necessário para rodar o estágio pré-CAT.</p></li>
+<li><p><strong>criteria</strong>: Critério de seleção (ver critérios explicados anteriormente). O padrão é <code>'random'</code>.</p></li>
+<li><p><strong>method</strong>: Critério de estimativa (ver métodos explicados anteriormente). Geralmente, recomenda-se selecionar um método que possa lidar com padrões de resposta “tudo ou nada”, como <code>'EAP'</code>, <code>'MAP'</code>, ou <code>'WLE'</code>. O padrão é <code>'MAP'</code>.</p></li>
+<li><p><strong>response_variance</strong>: Valor lógico; determina se o estágio pré-CAT deve terminar quando houver variabilidade no padrão de respostas (ou seja, quando a estimativa de máxima verossimilhança tiver um ótimo potencial). O padrão é <code>FALSE</code>.</p></li>
+</ul>
+<p><strong>…</strong>: Argumentos adicionais que podem ser passados para as funções <code>mirt</code>, <code>fscores</code>, <code>runApp</code> ou <code>lattice</code>.</p>
+<p><strong>x</strong>: Objeto da classe <code>'mirtCAT'</code>.</p>
+<p><strong>object</strong>: Objeto da classe <code>'mirtCAT'</code>.</p>
+<p><strong>sort</strong>: Valor lógico; determina se os padrões de resposta devem ser ordenados com base na ordem em que foram administrados. Se for <code>FALSE</code>, os padrões de resposta brutos contendo NAs serão retornados para os itens que não foram administrados.</p>
+<p><strong>pick_theta</strong>: Um número que indica qual theta deve ser plotado (aplicável apenas para testes multidimensionais). O padrão é facetar cada theta em um único gráfico. Para plotar apenas o primeiro fator, passe <code>pick_theta = 1</code>.</p>
+<p><strong>true_thetas</strong>: Valor lógico; inclui uma linha horizontal indicando onde estão os valores de theta a nível populacional. Aplicável apenas a simulações de Monte Carlo, pois esse valor não seria conhecido de outra forma.</p>
+<p><strong>SE</strong>: Tamanho dos erros padrão a serem plotados. O padrão é <code>1</code>, o que, portanto, plota o erro padrão. Para obter o intervalo de 95%, use <code>SE = 1.96</code> (da distribuição z).</p>
+<p><strong>main</strong>: Título do gráfico. O padrão será ‘CAT Standard Errors’ ou ‘CAT ##% Confidence Intervals’, dependendo da entrada de <code>SE</code>.</p>
+<p><strong>par.strip.text</strong>: Argumento de plotagem passado para o lattice.</p>
+<p><strong>par.settings</strong>: Argumento de plotagem passado para o lattice.</p>
+<p><strong>scales</strong>: Argumento de plotagem passado para o lattice.</p>
+</section>
+<section id="valores-resultantes-após-a-execução" class="level2">
+<h2 class="anchored" data-anchor-id="valores-resultantes-após-a-execução">Valores resultantes após a execução</h2>
+<p>Aqui estão os detalhes dos elementos contidos na lista do objeto da classe ‘Person’, que são retornados após a aplicação do teste:</p>
+<ul>
+<li><p><strong>raw_responses</strong>: Um vetor de caracteres que indica as respostas brutas aos respectivos itens, onde <code>NA</code> indica que o item não foi respondido.</p></li>
+<li><p><strong>scored_responses</strong>: Um vetor de inteiros com as respostas pontuadas, se a entrada <code>item_answers</code> foi utilizada para cada item correspondente.</p></li>
+<li><p><strong>items_answered</strong>: Um vetor de inteiros indicando a ordem em que os itens foram respondidos.</p></li>
+<li><p><strong>thetas</strong>: Um vetor numérico que indica as estimativas finais de theta.</p></li>
+<li><p><strong>SE_thetas</strong>: Um vetor numérico que indica os erros padrão das estimativas finais de theta.</p></li>
+<li><p><strong>thetas_history</strong>: Uma matriz que indica a progressão da atualização dos valores de theta durante o teste.</p></li>
+<li><p><strong>thetas_SE_history</strong>: Uma matriz que indica os erros padrão para theta após cada item sucessivamente respondido.</p></li>
+<li><p><strong>item_time</strong>: Um vetor numérico que indica quanto tempo o respondente levou para responder a cada pergunta (em segundos).</p></li>
+<li><p><strong>demographics</strong>: Um objeto de data.frame contendo as informações coletadas na primeira página da interface Shiny. Isso é utilizado para armazenar as informações demográficas de cada participante.</p></li>
+<li><p><strong>classification</strong>: Um vetor de caracteres que indica se os traços podem ser classificados como “acima” ou “abaixo” dos limites desejados.</p></li>
+</ul>
+<p>Aqui estão os detalhes sobre os arquivos de ajuda em HTML, exercícios e exemplos relacionados ao pacote <code>mirtCAT</code>, bem como informações sobre como modificar diretamente o objeto de design através da função <code>customNextItem()</code>:</p>
+</section>
+<section id="acesso-a-ajuda-e-exemplos" class="level2">
+<h2 class="anchored" data-anchor-id="acesso-a-ajuda-e-exemplos">Acesso a Ajuda e Exemplos</h2>
+<p>Para acessar exemplos, vinhetas e arquivos de exercícios gerados com <code>knitr</code>, visite: <a href="https://github.com/philchalmers/mirtCAT/wiki">mirtCAT Wiki</a>.</p>
+<section id="modificação-do-objeto-de-design-avançado" class="level3">
+<h3 class="anchored" data-anchor-id="modificação-do-objeto-de-design-avançado">Modificação do Objeto de Design (Avançado)</h3>
+<p>Além de fornecer um mapa de seleção de itens completamente definido por meio da função <code>customNextItem()</code>, os usuários podem desejar controlar alguns elementos mais detalhados do objeto de design para ajustar os parâmetros de controle geral do CAT (por exemplo, modificar o número máximo de itens a serem administrados, interromper o CAT se algo peculiar for detectado nos padrões de resposta, etc.).</p>
+<p><strong>Observação</strong>: Este recurso é raramente necessário para a maioria das aplicações, embora usuários mais avançados possam querer modificar esses vários elementos de baixo nível do objeto de design diretamente para alterar o fluxo do CAT de acordo com suas necessidades específicas.</p>
+<section id="diferenças-entre-objetos" class="level4">
+<h4 class="anchored" data-anchor-id="diferenças-entre-objetos">Diferenças entre Objetos</h4>
+<ul>
+<li>O objeto <code>person</code> é definido como uma <strong>Classe de Referência</strong> (veja <code>setRefClass</code>), permitindo que suas instâncias sejam mutáveis.</li>
+<li>O objeto <code>design</code>, por outro lado, é geralmente considerado uma classe <strong>S4 fixa</strong>, significando que seus elementos não são mutáveis.</li>
+</ul>
+</section>
+<section id="passos-para-modificação-do-objeto-de-design" class="level4">
+<h4 class="anchored" data-anchor-id="passos-para-modificação-do-objeto-de-design">Passos para Modificação do Objeto de Design</h4>
+<p>Para fazer alterações diretamente no objeto de design, os usuários devem seguir estes passos:</p>
+<ol type="1">
+<li>Dentro da função <code>customNextItem</code> definida, os slots do objeto de design são modificados (por exemplo, <code>design@max_items &lt;- 20L</code>).</li>
+<li>Juntamente com o valor escalar do próximo item desejado da função <code>customNextItem()</code>, o objeto escalar também deve conter um atributo com o nome ‘design’, que armazena o novo objeto de design definido (por exemplo, <code>attr(ret, 'design') &lt;- design; return(ret)</code>).</li>
+</ol>
+</section>
+</section>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button', {
+    text: function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+  });
+  clipboard.on('success', function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  });
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

@@ -1,25 +1,25 @@
 library(mirtCAT)
 
 build_irt_parameters <- function(
-  discrimination_list,
-  difficulty_list,
-  guessing_list
+    discrimination_list,
+    difficulty_list,
+    guessing_list
 ) {
   df <- data.frame(
     a1 = discrimination_list,
-    d = difficulty_list,
+    d = -discrimination_list*difficulty_list, 
     g = guessing_list
   )
   return(df)
 }
 
 create_mirt_object <- function(
-  parameters,
-  item_type = "3PL",
-  latent_means = NULL,
-  latent_covariance = NULL,
-  key = NULL,
-  min_category = 0
+    parameters,
+    item_type = "3PL",
+    latent_means = NULL,
+    latent_covariance = NULL,
+    key = NULL,
+    min_category = 0
 ) {
   mirt_object <- mirtCAT::generate.mirt_object(
     parameters = parameters,
@@ -33,9 +33,9 @@ create_mirt_object <- function(
 }
 
 generate_pattern <- function(
-  mirt_object,
-  theta,
-  dataframe = NULL
+    mirt_object,
+    theta,
+    dataframe = NULL
 ) {
   pattern <- mirtCAT::generate_pattern(
     mo = mirt_object,
@@ -46,19 +46,20 @@ generate_pattern <- function(
 }
 
 create_cat_design <- function(
-  mirt_object,
-  dataframe = NULL,
-  method = "MAP",
-  criteria = "seq",
-  start_item = 1,
-  pattern_theta,
-  pattern_dataframe = NULL,
-  ...
+    mirt_object,
+    dataframe = NULL,
+    method = "MAP",
+    criteria = "seq",
+    start_item = 1,
+    pattern_theta,
+    pattern_dataframe = NULL,
+    design=design,
+    ...
 ) {
   pattern <- generate_pattern(
     mirt_object, theta = pattern_theta, dataframe = pattern_dataframe
   )
-
+  
   cat_design <- mirtCAT(
     mo = mirt_object,
     dataframe = dataframe,
@@ -67,8 +68,9 @@ create_cat_design <- function(
     criteria = criteria,
     design_elements = TRUE,
     method = method,
+    design = design,
     ...
   )
-
+  
   return(cat_design)
 }
