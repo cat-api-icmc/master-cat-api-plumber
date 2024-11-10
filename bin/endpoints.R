@@ -14,7 +14,7 @@ function(req) {
   questions <- req$body$questions
   config <- req$body$config
 
-  type <- config$type
+  type <- config$type # 3PL
   start_item <- config$start_item
   criteria <- config$criteria
 
@@ -26,11 +26,19 @@ function(req) {
   min_items <- config$min_items
   max_items <- config$max_items
   max_time <- ifelse(
-    config$max_time != NULL,
+    !is.null(config$max_time),
     config$max_time,
     Inf
   )
-  # design <- req$body$design # this
+
+  design <- list(
+    min_SEM = min_sem,
+    delta_thetas = delta_thetas,
+    thetas.start = thetas_start,
+    min_items = min_items,
+    max_items = max_items,
+    max_time = max_time
+  )
 
   # create mirt object
   irt_params <- build_irt_parameters(
@@ -40,6 +48,11 @@ function(req) {
   )
   
   mo <- create_mirt_object(
+    item_type = ifelse( # remove this when implementing CDM
+      type %in% list("3PL", "2PL", "1PL"),
+      type, 
+      "3PL"
+    ),
     parameters = irt_params,
     latent_covariance = matrix(2)
   )
@@ -50,13 +63,7 @@ function(req) {
     pattern_theta = pattern_theta, 
     criteria = criteria, 
     start_item = start_item,
-    min_SEM = min_sem,
-    delta_thetas = delta_thetas,
-    thetas_start = thetas_start,
-    min_items = min_items,
-    max_items = max_items,
-    max_time = max_time,
-    # design = design 
+    design = design 
   )
   
   next_index <- mirtCAT::findNextItem(cat_design)

@@ -53,7 +53,7 @@ create_cat_design <- function(
     start_item = 1,
     pattern_theta,
     pattern_dataframe = NULL,
-    # design=design, # this
+    design=design,
     ...
 ) {
   pattern <- generate_pattern(
@@ -68,7 +68,7 @@ create_cat_design <- function(
     criteria = criteria,
     design_elements = TRUE,
     method = method,
-    # design = design,
+    design = design,
     ...
   )
   
