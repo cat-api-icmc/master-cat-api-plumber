@@ -65,6 +65,9 @@ function(req) {
     start_item = start_item,
     design = design 
   )
+
+  cat_design$item_time_history <- list()
+  cat_design$last_answer_time <- Sys.time()
   
   next_index <- mirtCAT::findNextItem(cat_design)
   
@@ -88,7 +91,16 @@ function(req) {
     new_response = answer,
     updateTheta = TRUE
   )
-  
+
+  now <- Sys.time()
+  cat_design$item_time_history <- append(
+    cat_design$item_time_history,
+    as.numeric(difftime(
+      now, cat_design$last_answer_time, units = "secs"
+    ))
+  )
+  cat_design$last_answer_time <- now
+
   # get next item
   next_index <- ifelse(
     !cat_design$design@stop_now,
@@ -111,18 +123,28 @@ function(req) {
 
   item_history <- cat_design$person$items_answered
   response_history <- cat_design$person$responses
-  theta_history <- lapply(
-    cat_design$person$thetas_history, 
+  last_answer_time <- jsonlite::unbox(cat_design$last_answer_time)
+
+  item_time_history <- lapply(
+    cat_design$item_time_history,
     function(x) jsonlite::unbox(x)
   )
+
+  theta_history <- lapply(
+    cat_design$person$thetas_history,
+    function(x) jsonlite::unbox(x)
+  )
+
   standard_error_history <- lapply(
-    cat_design$person$thetas_SE_history, 
+    cat_design$person$thetas_SE_history,
     function(x) jsonlite::unbox(x)
   )
 
   return(list(
     "item_history" = item_history,
     "response_history" = response_history,
+    "item_time_history" = item_time_history,
+    "last_answer_time" = last_answer_time,
     "theta_history" = theta_history,
     "standard_error_history" = standard_error_history
   ))
