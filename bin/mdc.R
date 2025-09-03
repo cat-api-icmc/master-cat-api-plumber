@@ -316,7 +316,7 @@ select_next_item <- function(
   
   answered <- !is.na(responses)
   candidate_items <- which(!answered)
-
+  
   # Selection of the criterion
   if (criteria == "seq") {
     selected <- candidate_items[1]
@@ -326,6 +326,7 @@ select_next_item <- function(
     if(length(candidate_items) == 1) selected <- candidate_items
     return(selected)
   } 
+  
   
   K <- ncol(Q)
   skill_patterns <- as.matrix(expand.grid(replicate(K, 0:1, simplify = FALSE)))
@@ -387,7 +388,7 @@ customNextItem <- function(person, design, test) {
   responses <- as.integer(responses)
   responses[responses == 1] <- 0
   responses[responses == 2] <- 1
-
+  
   best_item <- select_next_item(response = responses, Q=q_matrix, parameters = parameters, model = model, criteria = criteria, method = method)
   cat("Next item selected:", best_item, "-", criteria, "\n")
   return(best_item)

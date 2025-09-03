@@ -26,26 +26,27 @@ function(req) {
 
   questions <- req$body$questions
   config <- req$body$config
-
+  
   model <- config$model # 3PL
   start_item <- config$start_item
   criteria <- config$criteria
 
-  min_sem <- config$min_sem
-  delta_thetas <- config$delta_thetas
   thetas_start <- config$thetas_start
   pattern_theta <- config$pattern_theta
 
-  min_items <- config$min_items
-  max_items <- config$max_items
+  # stoping criteria
+  min_sem <- config$design$min_sem
+  delta_thetas <- config$design$delta_thetas
+  min_items <- config$design$min_items
+  max_items <- config$design$max_items
   max_time <- ifelse(
-    !is.null(config$max_time),
+    !is.null(config$design$max_time),
     config$max_time,
     Inf
   )
 
   design <- list(
-    min_SEM = min_sem,
+    min_SEM = min_sem ,
     delta_thetas = delta_thetas,
     thetas.start = thetas_start,
     min_items = min_items,
@@ -114,20 +115,21 @@ function(req) {
   questions <- req$body$questions
   q_matrix <- req$body$q_matrix
   config <- req$body$config
-
+  
   # assessment arguments that goes into the design
   model <- config$model
   start_item <- config$start_item
   method <- config$method # estimation method
-  min_sem <- config$min_sem
-  delta_thetas <- config$delta_thetas
   thetas_start <- config$thetas_start
   pattern_theta <- config$pattern_theta
   
-  min_items <- config$min_items
-  max_items <- config$max_items
+  # stoping criteria
+  min_sem <- config$design$min_sem
+  delta_thetas <- config$design$delta_thetas
+  min_items <- config$design$min_items
+  max_items <- config$design$max_items
   max_time <- ifelse(
-    !is.null(config$max_time),
+    !is.null(config$design$max_time),
     config$max_time,
     Inf
   )
@@ -140,7 +142,7 @@ function(req) {
     max_items = max_items,
     max_time = max_time,
     customUpdateThetas = customUpdateThetas,
-    customNextItem = customNextItem
+    customNextItem = customNextItem # validar se eh usado internamente
   )
 
   # create mirt object
@@ -148,13 +150,13 @@ function(req) {
   params <- generate_fake_mirt_pars(q_matrix)
   trait_cov <- diag(ncol(q_matrix))
   cdm_parameters <- questions
-    
+  
   mo <- create_mirt_object(
-    item_type = model,
+    item_type = "3PL", #model,
     parameters = params,
     latent_covariance = trait_cov  # Multidimensional element (validate importance)
   )
-
+  
   # start assessment
   cat_design <- create_cat_design(
     mo, 
@@ -164,18 +166,20 @@ function(req) {
     start_item = start_item,
     design = design
   )
-
+  
   cat_design$item_time_history <- list()
   cat_design$last_answer_time <- Sys.time()
   
   next_index <- cat_design$design@start_item
-
+  
   return(list(
     next_index = jsonlite::unbox(next_index),
+    stop = jsonlite::unbox(cat_design$design@stop_now),
     model = jsonlite::unbox(serialize_design(model)),
     questions = jsonlite::unbox(serialize_design(questions)),
     q_matrix = jsonlite::unbox(serialize_design(q_matrix)),
-    design = jsonlite::unbox(serialize_design(cat_design))
+    design = jsonlite::unbox(serialize_design(cat_design)),
+    criteria = jsonlite::unbox(config$criteria)
   ))
 }
 
@@ -206,7 +210,7 @@ function(req) {
   # get next item
   next_index <- ifelse(
     !cat_design$design@stop_now,
-    mirtCAT::findNextItem(cat_design),
+    mirtCAT::findNextItem(cat_design), # confimar no CDM
     0
   )
   
@@ -235,7 +239,7 @@ function(req) {
   criteria <<- criteria
   cdm_parameters <<- questions
   q_matrix <<- q_matrix
-
+  
   # deserialize and update design
   cat_design <- mirtCAT::updateDesign(
     e_design,
@@ -243,6 +247,7 @@ function(req) {
     new_response = answer,
     updateTheta = TRUE
   )
+  
   
   now <- Sys.time()
   cat_design$item_time_history <- append(
@@ -256,7 +261,7 @@ function(req) {
   if(cat_design$design@stop_now){
     next_index <- 0
   } else {
-    next_index <- customNextItem(
+    next_index <- customNextItem( # funcao usada diretamente
       person = cat_design$person,
       design = cat_design$design,
       test = cat_design$test
