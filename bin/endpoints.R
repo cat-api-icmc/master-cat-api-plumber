@@ -1,9 +1,8 @@
-
 #* @get /hc
 function() {
   return(list(status = jsonlite::unbox(
     sprintf(
-      "Healthy! %s | plumber %s | api %s", 
+      "Healthy! %s | plumber %s | api %s",
       r_version, plumber_version, app_version
     )
   )))
@@ -24,10 +23,10 @@ function(req) {
   #     - max_items: maximum number of items to be administered
   #     - max_time: maximum time allowed for the assessment
 
-  questions <- req$body$questions
+  questions <- data.frame(req$body$questions)
   config <- req$body$config
-  
-  model <- config$model # 3PL
+
+  model <- config$model_type # 3PL
   start_item <- config$start_item
   criteria <- config$criteria
 
@@ -46,7 +45,7 @@ function(req) {
   )
 
   design <- list(
-    min_SEM = min_sem ,
+    min_SEM = min_sem,
     delta_thetas = delta_thetas,
     thetas.start = thetas_start,
     min_items = min_items,
@@ -56,35 +55,36 @@ function(req) {
 
   # create mirt object
   irt_params <- build_irt_parameters(
-    discrimination_list = questions$discrimination,
-    difficulty_list = questions$difficulty,
-    guessing_list = questions$guess
+    discrimination_list = questions$params$irt_discrimination,
+    difficulty_list = questions$params$irt_difficulty,
+    guessing_list = questions$params$irt_guess
+    # upper_asymptote_list = questions$params$irt_upper_asymptote
   )
   
   mo <- create_mirt_object(
     item_type = ifelse(
       model %in% list("3PL", "2PL", "1PL"),
-      model, 
+      model,
       "3PL"
     ),
     parameters = irt_params,
     latent_covariance = matrix(2)
   )
-  
+
   # start assessment
   cat_design <- create_cat_design(
-    mo, 
-    pattern_theta = pattern_theta, 
-    criteria = criteria, 
+    mo,
+    pattern_theta = pattern_theta,
+    criteria = criteria,
     start_item = start_item,
-    design = design 
+    design = design
   )
 
   cat_design$item_time_history <- list()
   cat_design$last_answer_time <- Sys.time()
-  
+
   next_index <- mirtCAT::findNextItem(cat_design)
-  
+
   return(list(
     next_index = jsonlite::unbox(next_index),
     stop = jsonlite::unbox(cat_design$design@stop_now),
@@ -115,14 +115,14 @@ function(req) {
   questions <- req$body$questions
   q_matrix <- req$body$q_matrix
   config <- req$body$config
-  
+
   # assessment arguments that goes into the design
   model <- config$model
   start_item <- config$start_item
   method <- config$method # estimation method
   thetas_start <- config$thetas_start
   pattern_theta <- config$pattern_theta
-  
+
   # stoping criteria
   min_sem <- config$design$min_sem
   delta_thetas <- config$design$delta_thetas
@@ -133,7 +133,7 @@ function(req) {
     config$max_time,
     Inf
   )
-  
+
   design <- list(
     min_SEM = min_sem,
     delta_thetas = delta_thetas,
@@ -150,28 +150,28 @@ function(req) {
   params <- generate_fake_mirt_pars(q_matrix)
   trait_cov <- diag(ncol(q_matrix))
   cdm_parameters <- questions
-  
+
   mo <- create_mirt_object(
-    item_type = "3PL", #model,
+    item_type = "3PL", # model,
     parameters = params,
-    latent_covariance = trait_cov  # Multidimensional element (validate importance)
+    latent_covariance = trait_cov # Multidimensional element (validate importance)
   )
-  
+
   # start assessment
   cat_design <- create_cat_design(
-    mo, 
-    pattern_theta = pattern_theta, 
+    mo,
+    pattern_theta = pattern_theta,
     criteria = "custom",
     method = method,
     start_item = start_item,
     design = design
   )
-  
+
   cat_design$item_time_history <- list()
   cat_design$last_answer_time <- Sys.time()
-  
+
   next_index <- cat_design$design@start_item
-  
+
   return(list(
     next_index = jsonlite::unbox(next_index),
     stop = jsonlite::unbox(cat_design$design@stop_now),
@@ -189,7 +189,7 @@ function(req) {
   e_design <- req$body$design
   answer <- req$body$answer
   prev_item <- req$body$previous_index
-  
+
   # deserialize and update design
   cat_design <- mirtCAT::updateDesign(
     deserialize_design(e_design),
@@ -202,7 +202,8 @@ function(req) {
   cat_design$item_time_history <- append(
     cat_design$item_time_history,
     as.numeric(difftime(
-      now, cat_design$last_answer_time, units = "secs"
+      now, cat_design$last_answer_time,
+      units = "secs"
     ))
   )
   cat_design$last_answer_time <- now
@@ -213,7 +214,7 @@ function(req) {
     mirtCAT::findNextItem(cat_design), # confimar no CDM
     0
   )
-  
+
   return(list(
     next_index = jsonlite::unbox(next_index),
     stop = jsonlite::unbox(cat_design$design@stop_now),
@@ -224,7 +225,6 @@ function(req) {
 
 #* @post /cdm/next-item
 function(req) {
-  
   # request arguments
   e_design <- deserialize_design(req$body$design)
   model <- deserialize_design(req$body$model)
@@ -233,13 +233,13 @@ function(req) {
   criteria <- req$body$criteria
   answer <- req$body$answer
   prev_item <- req$body$previous_index
-  
+
   # set CDM variables to global environment
   model <<- model
   criteria <<- criteria
   cdm_parameters <<- questions
   q_matrix <<- q_matrix
-  
+
   # deserialize and update design
   cat_design <- mirtCAT::updateDesign(
     e_design,
@@ -247,18 +247,19 @@ function(req) {
     new_response = answer,
     updateTheta = TRUE
   )
-  
-  
+
+
   now <- Sys.time()
   cat_design$item_time_history <- append(
     cat_design$item_time_history,
     as.numeric(difftime(
-      now, cat_design$last_answer_time, units = "secs"
+      now, cat_design$last_answer_time,
+      units = "secs"
     ))
   )
   cat_design$last_answer_time <- now
 
-  if(cat_design$design@stop_now){
+  if (cat_design$design@stop_now) {
     next_index <- 0
   } else {
     next_index <- customNextItem( # funcao usada diretamente
@@ -267,7 +268,7 @@ function(req) {
       test = cat_design$test
     )
   }
-  
+
   return(list(
     next_index = jsonlite::unbox(next_index),
     stop = jsonlite::unbox(cat_design$design@stop_now),

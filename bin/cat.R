@@ -4,11 +4,13 @@ build_irt_parameters <- function(
     discrimination_list,
     difficulty_list,
     guessing_list
+    # upper_asymptote_list
 ) {
   df <- data.frame(
     a1 = discrimination_list,
-    d = -discrimination_list*difficulty_list, 
+    d = -discrimination_list * difficulty_list,
     g = guessing_list
+    # u = upper_asymptote_list
   )
   return(df)
 }
@@ -19,8 +21,7 @@ create_mirt_object <- function(
     latent_means = NULL,
     latent_covariance = NULL,
     key = NULL,
-    min_category = 0
-) {
+    min_category = 0) {
   mirt_object <- mirtCAT::generate.mirt_object(
     parameters = parameters,
     itemtype = item_type,
@@ -35,8 +36,7 @@ create_mirt_object <- function(
 generate_pattern <- function(
     mirt_object,
     theta,
-    dataframe = NULL
-) {
+    dataframe = NULL) {
   pattern <- mirtCAT::generate_pattern(
     mo = mirt_object,
     Theta = theta,
@@ -53,13 +53,13 @@ create_cat_design <- function(
     start_item = 1,
     pattern_theta,
     pattern_dataframe = NULL,
-    design=design,
-    ...
-) {
+    design = design,
+    ...) {
   pattern <- generate_pattern(
-    mirt_object, theta = pattern_theta, dataframe = pattern_dataframe
+    mirt_object,
+    theta = pattern_theta, dataframe = pattern_dataframe
   )
-  
+
   cat_design <- mirtCAT(
     mo = mirt_object,
     dataframe = dataframe,
@@ -71,6 +71,6 @@ create_cat_design <- function(
     design = design,
     ...
   )
-  
+
   return(cat_design)
 }
