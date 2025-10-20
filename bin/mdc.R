@@ -1,3 +1,15 @@
+build_qmatrix <- function(questions) {
+  cdm_qmatrix <- questions$params$cdm_qmatrix
+  max_index <- max(sapply(cdm_qmatrix, max))
+  qmatrix <- matrix(0, nrow=length(cdm_qmatrix), ncol=max_index)
+  for(i in 1:length(cdm_qmatrix)) {
+    for(j in cdm_qmatrix[i]) {
+      qmatrix[i,j] = 1
+    }
+  }
+  return(list(qmatrix=qmatrix, n_skills=max_index))
+}
+
 # DINA improvement
 generate_fake_mirt_pars <- function(q_matrix){
     n_itens <- nrow(q_matrix)

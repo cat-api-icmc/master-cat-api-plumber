@@ -97,7 +97,6 @@ function(req) {
 function(req) {
   # req contains the request object with elements:
   #   - questions: list of questions with parameters
-  #   - q_matrix: Q-matrix for CDM
   #   - config: elements which goes into the design of the assessment
   #       - model: model type (DINA, DINO, GDINA) item_type input
   #       - start_item: index of the first item to be presented
@@ -113,15 +112,20 @@ function(req) {
 
   # request arguments
   questions <- req$body$questions
-  q_matrix <- req$body$q_matrix
   config <- req$body$config
+
+  qmatrix_values <- build_qmatrix(questions)
+  q_matrix <- qmatrix_values$qmatrix
+  n_skills <- qmatrix_values$n_skills
 
   # assessment arguments that goes into the design
   model <- config$model
   start_item <- config$start_item
-  method <- config$method # estimation method
   thetas_start <- config$thetas_start
   pattern_theta <- config$pattern_theta
+
+  # TODO: avaliate pass this through API
+  method <- "MAP" # EAP | MAP | MLE
 
   # stoping criteria
   min_sem <- config$design$min_sem
@@ -136,8 +140,8 @@ function(req) {
 
   design <- list(
     min_SEM = min_sem,
-    delta_thetas = delta_thetas,
-    thetas.start = thetas_start,
+    # delta_thetas = rep(0, n_skills),
+    thetas.start = rep(0, n_skills),
     min_items = min_items,
     max_items = max_items,
     max_time = max_time,
@@ -160,7 +164,7 @@ function(req) {
   # start assessment
   cat_design <- create_cat_design(
     mo,
-    pattern_theta = pattern_theta,
+    pattern_theta = rep(0, n_skills),
     criteria = "custom",
     method = method,
     start_item = start_item,
