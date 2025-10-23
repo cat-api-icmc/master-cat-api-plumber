@@ -153,7 +153,7 @@ function(req) {
   source("mirtCAT.R") # edit some mirtCAT objects
   params <- generate_fake_mirt_pars(q_matrix)
   trait_cov <- diag(ncol(q_matrix))
-  cdm_parameters <- questions
+  cdm_parameters <- build_cdmparameters(questions)
 
   mo <- create_mirt_object(
     item_type = "3PL", # model,
@@ -179,11 +179,7 @@ function(req) {
   return(list(
     next_index = jsonlite::unbox(next_index),
     stop = jsonlite::unbox(cat_design$design@stop_now),
-    model = jsonlite::unbox(serialize_design(model)),
-    questions = jsonlite::unbox(serialize_design(questions)),
-    q_matrix = jsonlite::unbox(serialize_design(q_matrix)),
-    design = jsonlite::unbox(serialize_design(cat_design)),
-    criteria = jsonlite::unbox(config$criteria)
+    design = jsonlite::unbox(serialize_design(cat_design))
   ))
 }
 
@@ -231,17 +227,22 @@ function(req) {
 function(req) {
   # request arguments
   e_design <- deserialize_design(req$body$design)
-  model <- deserialize_design(req$body$model)
-  questions <- deserialize_design(req$body$questions)
-  q_matrix <- deserialize_design(req$body$q_matrix)
+  model <- req$body$model
   criteria <- req$body$criteria
+  questions <- req$body$questions
   answer <- req$body$answer
   prev_item <- req$body$previous_index
+
+  qmatrix_values <- build_qmatrix(questions)
+  q_matrix <- qmatrix_values$qmatrix
+  n_skills <- qmatrix_values$n_skills
+
+  cdm_parameters <- build_cdmparameters(questions)
 
   # set CDM variables to global environment
   model <<- model
   criteria <<- criteria
-  cdm_parameters <<- questions
+  cdm_parameters <<- cdm_parameters
   q_matrix <<- q_matrix
 
   # deserialize and update design
@@ -276,10 +277,6 @@ function(req) {
   return(list(
     next_index = jsonlite::unbox(next_index),
     stop = jsonlite::unbox(cat_design$design@stop_now),
-    criteria = jsonlite::unbox(criteria),
-    model = jsonlite::unbox(serialize_design(model)),
-    questions = jsonlite::unbox(serialize_design(questions)),
-    q_matrix = jsonlite::unbox(serialize_design(q_matrix)),
     design = jsonlite::unbox(serialize_design(cat_design))
   ))
 }
