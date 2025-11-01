@@ -15,6 +15,12 @@ build_irt_parameters <- function(
   return(df)
 }
 
+customNextItemIRT <- function(design, person, test){
+  best_item <- findNextItem(person=person, design=design, test=test, criteria=criteria)
+  cat("Next item selected:", best_item, "-", criteria, "\n")
+  best_item
+}
+
 create_mirt_object <- function(
     parameters,
     item_type = "3PL",

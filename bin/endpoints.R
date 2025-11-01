@@ -95,7 +95,8 @@ function(req, res) {
       thetas.start = thetas_start,
       min_items = min_items,
       max_items = max_items,
-      max_time = max_time
+      max_time = max_time,
+      customNextItem = customNextItemIRT
     )
 
     # ===============================
@@ -124,7 +125,6 @@ function(req, res) {
     cat_design <- create_cat_design(
       mo,
       pattern_theta = pattern_theta,
-      criteria = criteria,
       start_item = start_item,
       design = design
     )
@@ -133,7 +133,8 @@ function(req, res) {
     cat_design$last_answer_time <- Sys.time()
 
     # Próximo item
-    next_index <- mirtCAT::findNextItem(cat_design)
+    # next_index <- mirtCAT::findNextItem(cat_design)
+    next_index <- cat_design$design@start_item
 
     # ===============================
     # 🔹 RETURN SUCCESS
@@ -194,7 +195,7 @@ function(req, res) {
 #*       - `design`: critérios de parada (`min_sem`, `min_items`, `max_items`, `max_time`)
 #*
 #* Observações:
-#* - O design interno utiliza `min_SEM`, `thetas.start` e funções customizadas (`customUpdateThetas`, `customNextItem`).
+#* - O design interno utiliza `min_SEM`, `thetas.start` e funções customizadas (`customUpdateThetas`, `customNextItemCDM`).
 #* - Na inicialização é usado `criteria = "custom"` internamente; o próximo item inicial é `start_item`.
 #*
 #* @return JSON com:
@@ -273,13 +274,13 @@ function(req, res) {
       max_items = max_items,
       max_time = max_time,
       customUpdateThetas = customUpdateThetas,
-      customNextItem = customNextItem
+      customNextItem = customNextItemCDM
     )
 
     # ===============================
     # 🔹 OBJETO MIRT
     # ===============================
-    source("mirtCAT.R")  # importa modificações customizadas
+    #source("mirtCAT.R")  # importa modificações customizadas
     params <- generate_fake_mirt_pars(q_matrix)
     trait_cov <- diag(ncol(q_matrix))
 
@@ -295,7 +296,6 @@ function(req, res) {
     cat_design <- create_cat_design(
       mo,
       pattern_theta = rep(0, n_skills),
-      criteria = "custom",
       method = method,
       start_item = start_item,
       design = design
@@ -378,6 +378,12 @@ function(req, res) {
     answer <- req$body$answer
     prev_item <- req$body$previous_index
 
+    config <- req$body$config
+    criteria <- config$criteria
+
+    # define variáveis globais necessárias para funções auxiliares
+    criteria <<- criteria
+
     # desserializa e atualiza o design
     cat_design <- mirtCAT::updateDesign(
       deserialize_design(e_design),
@@ -396,14 +402,23 @@ function(req, res) {
       ))
     )
     cat_design$last_answer_time <- now
-
+    
     # obtém o próximo item
-    next_index <- ifelse(
-      !cat_design$design@stop_now,
-      mirtCAT::findNextItem(cat_design),
-      0
-    )
-
+    # next_index <- ifelse(
+    #   !cat_design$design@stop_now,
+    #   mirtCAT::findNextItem(cat_design),
+    #   0
+    # )
+    if (cat_design$design@stop_now) {
+      next_index <- 0
+    } else {
+      next_index <- customNextItemIRT(
+        person = cat_design$person,
+        design = cat_design$design,
+        test = cat_design$test
+      )
+    }
+    
     res$status <- 200
     return(list(
       status = "success",
@@ -443,7 +458,7 @@ function(req, res) {
 #* 2. Define variáveis globais de modelo e matriz Q
 #* 3. Atualiza o design do teste (`updateDesign`)
 #* 4. Registra o tempo de resposta
-#* 5. Calcula o próximo item a ser apresentado usando `customNextItem`
+#* 5. Calcula o próximo item a ser apresentado usando `customNextItemCDM`
 #*
 #* Retorna:
 #* - `next_index`: índice do próximo item (ou `0` se `stop = TRUE`)
@@ -514,7 +529,7 @@ function(req, res) {
     if (cat_design$design@stop_now) {
       next_index <- 0
     } else {
-      next_index <- customNextItem(
+      next_index <- customNextItemCDM(
         person = cat_design$person,
         design = cat_design$design,
         test = cat_design$test

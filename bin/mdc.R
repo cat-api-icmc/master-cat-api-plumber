@@ -426,7 +426,7 @@ select_next_item <- function(
   return(selected)
 }
 
-customNextItem <- function(person, design, test) {
+customNextItemCDM <- function(person, design, test) {
 
   # from global environment:
   model <- model
