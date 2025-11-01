@@ -1,5 +1,5 @@
 r_version <- R.version$version.string
-plumber_version <- packageVersion("plumber")
+plumber_version <- as.character(packageVersion("plumber"))
 app_version <- "1.0.0"
 
 source("utils/serializer.R")

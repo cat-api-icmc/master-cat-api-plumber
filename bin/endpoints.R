@@ -1,317 +1,619 @@
 #* @get /hc
-function() {
-  return(list(status = jsonlite::unbox(
-    sprintf(
-      "Healthy! %s | plumber %s | api %s",
-      r_version, plumber_version, app_version
+#* @description
+#* Endpoint de verificação de saúde (Health Check) da API.
+#*
+#* Retorna:
+#* - `status`: mensagem indicando que a API está saudável, incluindo versões de R, Plumber e da aplicação embutidas no texto.
+#*
+#* Em caso de erro, retorna:
+#* - `error`: mensagem de erro
+#* - `trace`: rastreamento da pilha de execução
+function(res) {
+  tryCatch({
+
+    # Variáveis globais esperadas
+    r_version <- get0("r_version", ifnotfound = "unknown", inherits = TRUE)
+    plumber_version <- get0("plumber_version", ifnotfound = "unknown", inherits = TRUE)
+    app_version <- get0("app_version", ifnotfound = "unknown", inherits = TRUE)
+
+    res$status <- 200
+    return(list(
+      status = jsonlite::unbox(
+        sprintf("Healthy! %s | plumber %s | api %s", r_version, plumber_version, app_version)
+      )))
+
+  }, error = function(e) {
+    # Captura e retorna erro detalhado
+    res$status <- 500
+    list(
+      error = e$message,
+      trace = paste(capture.output(traceback()), collapse = "\n")
     )
-  )))
+  })
 }
 
+
+#* @apiTitle IRT Assessment API
+#* @apiDescription API responsável por iniciar um teste adaptativo computadorizado (CAT)
+#* baseado em modelos de Resposta ao Item (IRT), como 1PL, 2PL e 3PL.
+#* 
+#* O endpoint `/irt/start-assessment` recebe um conjunto de parâmetros
+#* de itens e de configuração do teste, cria o objeto IRT e o design do CAT,
+#* e retorna o próximo item a ser apresentado ao participante.
+#*
+#* @param req Corpo da requisição contendo:
+#*   - `questions`: lista com parâmetros IRT em `questions$params`, contendo:
+#*       - `irt_discrimination`: vetor de discriminações
+#*       - `irt_difficulty`: vetor de dificuldades
+#*       - `irt_guess`: vetor de parâmetros de acerto ao acaso
+#*   - `config`: configurações gerais do teste adaptativo, incluindo:
+#*       - `model_type`: tipo de modelo IRT (1PL, 2PL ou 3PL)
+#*       - `criteria`: critério de seleção do próximo item
+#*       - `start_item`: índice do primeiro item
+#*       - `thetas_start`: valores iniciais de theta
+#*       - `pattern_theta`: padrão de theta em avaliações multidimensionais
+#*       - `design`: critérios de parada (`min_sem`, `delta_thetas`, `min_items`, `max_items`, `max_time`)
+#*
+#* @return JSON com:
+#*   - `status`: "success" em caso de sucesso
+#*   - `next_index`: índice do próximo item
+#*   - `stop`: flag indicando se o teste deve parar
+#*   - `design`: design serializado do CAT
+#*   - Em caso de erro: `status = "error"`, `message`, `call` e `traceback`
+#*
 #* @post /irt/start-assessment
-function(req) {
-  # - questions: list of questions with parameters
-  # - config: elements which goes into the design of the assessment
-  #     - model: model type (3PL, 2PL, 1PL) item_type input
-  #     - start_item: index of the first item to be presented
-  #     - criteria: next item selection criteria
-  #     - min_sem: minimum standard error of measurement
-  #     - delta_thetas: change in theta for stopping criteria
-  #     - thetas_start: initial theta values
-  #     - pattern_theta: pattern of theta values for multidimensional assessments
-  #     - min_items: minimum number of items to be administered
-  #     - max_items: maximum number of items to be administered
-  #     - max_time: maximum time allowed for the assessment
+function(req, res) {
+  tryCatch({
 
-  questions <- data.frame(req$body$questions)
-  config <- req$body$config
+    # ===============================
+    # 🔹 INPUT PARSING
+    # ===============================
+    questions <- req$body$questions
+    config <- req$body$config
 
-  model <- config$model_type # 3PL
-  start_item <- config$start_item
-  criteria <- config$criteria
+    model <- config$model_type # irt model
+    start_item <- config$start_item
+    criteria <- config$criteria
 
-  thetas_start <- config$thetas_start
-  pattern_theta <- config$pattern_theta
+    thetas_start <- config$thetas_start
+    pattern_theta <- config$pattern_theta
 
-  # stoping criteria
-  min_sem <- config$design$min_sem
-  delta_thetas <- config$design$delta_thetas
-  min_items <- config$design$min_items
-  max_items <- config$design$max_items
-  max_time <- ifelse(
-    !is.null(config$design$max_time),
-    config$max_time,
-    Inf
-  )
+    # stopping criteria
+    min_sem <- config$design$min_sem
+    delta_thetas <- config$design$delta_thetas
+    min_items <- config$design$min_items
+    max_items <- config$design$max_items
+    max_time <- ifelse(
+      !is.null(config$design$max_time),
+      config$design$max_time,
+      Inf
+    )
 
-  design <- list(
-    min_SEM = min_sem,
-    delta_thetas = delta_thetas,
-    thetas.start = thetas_start,
-    min_items = min_items,
-    max_items = max_items,
-    max_time = max_time
-  )
+    design <- list(
+      min_SEM = min_sem,
+      delta_thetas = delta_thetas,
+      thetas.start = thetas_start,
+      min_items = min_items,
+      max_items = max_items,
+      max_time = max_time
+    )
 
-  # create mirt object
-  irt_params <- build_irt_parameters(
-    discrimination_list = questions$params$irt_discrimination,
-    difficulty_list = questions$params$irt_difficulty,
-    guessing_list = questions$params$irt_guess
-    # upper_asymptote_list = questions$params$irt_upper_asymptote
-  )
-  
-  mo <- create_mirt_object(
-    item_type = ifelse(
-      model %in% list("3PL", "2PL", "1PL"),
-      model,
-      "3PL"
-    ),
-    parameters = irt_params,
-    latent_covariance = matrix(2)
-  )
+    # ===============================
+    # 🔹 IRT OBJECT CREATION
+    # ===============================
+    irt_params <- build_irt_parameters(
+      discrimination_list = questions$params$irt_discrimination,
+      difficulty_list = questions$params$irt_difficulty,
+      guessing_list = questions$params$irt_guess
+      # upper_asymptote_list = questions$params$irt_upper_asymptote
+    )
 
-  # start assessment
-  cat_design <- create_cat_design(
-    mo,
-    pattern_theta = pattern_theta,
-    criteria = criteria,
-    start_item = start_item,
-    design = design
-  )
+    mo <- create_mirt_object(
+      item_type = ifelse(
+        model %in% list("3PL", "2PL", "1PL"),
+        model,
+        "3PL"
+      ),
+      parameters = irt_params,
+      latent_covariance = matrix(2)
+    )
 
-  cat_design$item_time_history <- list()
-  cat_design$last_answer_time <- Sys.time()
+    # ===============================
+    # 🔹 CAT DESIGN
+    # ===============================
+    cat_design <- create_cat_design(
+      mo,
+      pattern_theta = pattern_theta,
+      criteria = criteria,
+      start_item = start_item,
+      design = design
+    )
 
-  next_index <- mirtCAT::findNextItem(cat_design)
+    cat_design$item_time_history <- list()
+    cat_design$last_answer_time <- Sys.time()
 
-  return(list(
-    next_index = jsonlite::unbox(next_index),
-    stop = jsonlite::unbox(cat_design$design@stop_now),
-    design = jsonlite::unbox(serialize_design(cat_design))
-  ))
+    # Próximo item
+    next_index <- mirtCAT::findNextItem(cat_design)
+
+    # ===============================
+    # 🔹 RETURN SUCCESS
+    # ===============================
+    res$status <- 200
+    return(list(
+      status = "success",
+      next_index = jsonlite::unbox(next_index),
+      stop = jsonlite::unbox(cat_design$design@stop_now),
+      design = jsonlite::unbox(serialize_design(cat_design))
+    ))
+
+  },
+  error = function(e) {
+    # ===============================
+    # 🔹 ERROR HANDLING
+    # ===============================
+    trace <- paste(capture.output(traceback()), collapse = "\n")
+
+    # Loga o erro no console (ou arquivo)
+    cat(sprintf(
+      "[%s] ERRO em /irt/start-assessment: %s\nCALL: %s\nTRACE:\n%s\n\n",
+      Sys.time(),
+      e$message,
+      deparse(e$call),
+      trace
+    ))
+
+    res$status <- 500
+    list(
+      status = "error",
+      message = e$message,
+      call = deparse(e$call),
+      traceback = trace
+    )
+  })
 }
 
 
+#* @apiTitle CDM Assessment API
+#* @apiDescription
+#* Inicia um teste adaptativo computadorizado (CAT) baseado em Modelos de Diagnóstico Cognitivo (CDM),
+#* como DINA, DINO e GDINA.
+#*
+#* O endpoint `/cdm/start-assessment` recebe os parâmetros dos itens (Q-matrix e parâmetros do modelo),
+#* as configurações do teste e retorna o índice do próximo item a ser administrado,
+#* juntamente com o design serializado do CAT.
+#*
+#* @param req Corpo da requisição contendo:
+#*   - `questions`: lista de questões com parâmetros e Q-matrix (utilizada por `build_cdm_parameters`)
+#*   - `config`: lista com parâmetros de configuração, incluindo:
+#*       - `model_type`: tipo de modelo CDM (DINA, DINO, GDINA)
+#*       - `start_item`: índice do primeiro item a ser aplicado
+#*       - `criteria`: critério de seleção (validado)
+#*       - `method`: método de estimação (EAP, MAP, MLE)
+#*       - `thetas_start`: vetor inicial de habilidades (opcional)
+#*       - `pattern_theta`: padrão de habilidades multidimensionais (opcional)
+#*       - `design`: critérios de parada (`min_sem`, `min_items`, `max_items`, `max_time`)
+#*
+#* Observações:
+#* - O design interno utiliza `min_SEM`, `thetas.start` e funções customizadas (`customUpdateThetas`, `customNextItem`).
+#* - Na inicialização é usado `criteria = "custom"` internamente; o próximo item inicial é `start_item`.
+#*
+#* @return JSON com:
+#*   - `status`: "success" em caso de sucesso
+#*   - `next_index`: índice do próximo item (igual a `start_item` na inicialização)
+#*   - `stop`: flag indicando se o teste deve parar
+#*   - `model_type`: modelo utilizado (serializado)
+#*   - `questions`: lista de questões (serializada)
+#*   - `q_matrix`: matriz Q (serializada)
+#*   - `design`: design do CAT (serializado)
+#*   - `criteria`: critério de seleção informado na configuração
+#*
+#* Em caso de erro, retorna:
+#*   - `status = "error"`
+#*   - `message`: mensagem do erro
+#*   - `call`: expressão que causou o erro
+#*   - `traceback`: pilha de chamadas
+#*
 #* @post /cdm/start-assessment
-function(req) {
-  # req contains the request object with elements:
-  #   - questions: list of questions with parameters
-  #   - config: elements which goes into the design of the assessment
-  #       - model: model type (DINA, DINO, GDINA) item_type input
-  #       - start_item: index of the first item to be presented
-  #       - criteria: next item selection criteria
-  #       - method: estimation method
-  #       - min_sem: minimum standard error of measurement
-  #       - delta_thetas: change in theta for stopping criteria
-  #       - thetas_start: initial theta values
-  #       - pattern_theta: pattern of theta values for multidimensional assessments
-  #       - min_items: minimum number of items to be administered
-  #       - max_items: maximum number of items to be administered
-  #       - max_time: maximum time allowed for the assessment
+function(req, res) {
+  tryCatch({
 
-  # request arguments
-  questions <- req$body$questions
-  config <- req$body$config
+    # ===============================
+    # 🔹 PARSING DA REQUISIÇÃO
+    # ===============================
+    questions <- req$body$questions
+    config <- req$body$config
 
-  qmatrix_values <- build_qmatrix(questions)
-  q_matrix <- qmatrix_values$qmatrix
-  n_skills <- qmatrix_values$n_skills
+    qmatrix_values <- build_cdm_parameters(questions)
+    cdm_parameters <- qmatrix_values$parameters  # não usado diretamente
+    q_matrix <- qmatrix_values$qmatrix
+    n_skills <- qmatrix_values$n_skills
 
-  # assessment arguments that goes into the design
-  model <- config$model
-  start_item <- config$start_item
-  thetas_start <- config$thetas_start
-  pattern_theta <- config$pattern_theta
+    # ===============================
+    # 🔹 CONFIGURAÇÕES DO TESTE
+    # ===============================
+    model <- config$model_type # cdm model
+    criteria <- config$criteria
+    start_item <- config$start_item
+    thetas_start <- config$thetas_start
+    pattern_theta <- config$pattern_theta
+    method <- config$method
 
-  # TODO: avaliate pass this through API
-  method <- "MAP" # EAP | MAP | MLE
+    allowed_methods <- c("EAP", "MAP", "MLE")
+    allowed_models <- c("DINA", "DINO", "GDINA")
+    allowed_criteria <- c("seq", "random", "SHE", "KL", "PWKL", "MPWKL")
 
-  # stoping criteria
-  min_sem <- config$design$min_sem
-  delta_thetas <- config$design$delta_thetas
-  min_items <- config$design$min_items
-  max_items <- config$design$max_items
-  max_time <- ifelse(
-    !is.null(config$design$max_time),
-    config$max_time,
-    Inf
-  )
+    if (!method %in% allowed_methods) {
+      stop("Método não permitido, escolha entre: ", paste(allowed_methods, collapse = ", "), ".")
+    }
+    if (!model %in% allowed_models) {
+      stop("Modelo não permitido, escolha entre: ", paste(allowed_models, collapse = ", "), ".")
+    }
+    if (!criteria %in% allowed_criteria) {
+      stop("Critério não permitido, escolha entre: ", paste(allowed_criteria, collapse = ", "), ".")
+    }
 
-  design <- list(
-    min_SEM = min_sem,
-    # delta_thetas = rep(0, n_skills),
-    thetas.start = rep(0, n_skills),
-    min_items = min_items,
-    max_items = max_items,
-    max_time = max_time,
-    customUpdateThetas = customUpdateThetas,
-    customNextItem = customNextItem # validar se eh usado internamente
-  )
+    # critérios de parada
+    min_sem <- config$design$min_sem
+    delta_thetas <- config$design$delta_thetas
+    min_items <- config$design$min_items
+    max_items <- config$design$max_items
+    max_time <- ifelse(
+      !is.null(config$design$max_time),
+      config$design$max_time,
+      Inf
+    )
 
-  # create mirt object
-  source("mirtCAT.R") # edit some mirtCAT objects
-  params <- generate_fake_mirt_pars(q_matrix)
-  trait_cov <- diag(ncol(q_matrix))
-  cdm_parameters <- build_cdmparameters(questions)
+    # ===============================
+    # 🔹 DESIGN DO CAT
+    # ===============================
+    design <- list(
+      min_SEM = min_sem,
+      thetas.start = rep(0, n_skills),
+      min_items = min_items,
+      max_items = max_items,
+      max_time = max_time,
+      customUpdateThetas = customUpdateThetas,
+      customNextItem = customNextItem
+    )
 
-  mo <- create_mirt_object(
-    item_type = "3PL", # model,
-    parameters = params,
-    latent_covariance = trait_cov # Multidimensional element (validate importance)
-  )
+    # ===============================
+    # 🔹 OBJETO MIRT
+    # ===============================
+    source("mirtCAT.R")  # importa modificações customizadas
+    params <- generate_fake_mirt_pars(q_matrix)
+    trait_cov <- diag(ncol(q_matrix))
 
-  # start assessment
-  cat_design <- create_cat_design(
-    mo,
-    pattern_theta = rep(0, n_skills),
-    criteria = "custom",
-    method = method,
-    start_item = start_item,
-    design = design
-  )
+    mo <- create_mirt_object(
+      item_type = "3PL", # placeholder (model),
+      parameters = params,
+      latent_covariance = trait_cov
+    )
 
-  cat_design$item_time_history <- list()
-  cat_design$last_answer_time <- Sys.time()
+    # ===============================
+    # 🔹 CRIAÇÃO DO DESIGN CAT
+    # ===============================
+    cat_design <- create_cat_design(
+      mo,
+      pattern_theta = rep(0, n_skills),
+      criteria = "custom",
+      method = method,
+      start_item = start_item,
+      design = design
+    )
 
-  next_index <- cat_design$design@start_item
+    cat_design$item_time_history <- list()
+    cat_design$last_answer_time <- Sys.time()
 
-  return(list(
-    next_index = jsonlite::unbox(next_index),
-    stop = jsonlite::unbox(cat_design$design@stop_now),
-    design = jsonlite::unbox(serialize_design(cat_design))
-  ))
+    next_index <- cat_design$design@start_item
+
+    # ===============================
+    # 🔹 RETORNO DE SUCESSO
+    # ===============================
+    res$status <- 200
+    return(list(
+      status = "success",
+      next_index = jsonlite::unbox(next_index),
+      stop = jsonlite::unbox(cat_design$design@stop_now),
+      model_type = jsonlite::unbox(serialize_design(model)),
+      questions = jsonlite::unbox(serialize_design(questions)),
+      q_matrix = jsonlite::unbox(serialize_design(q_matrix)),
+      design = jsonlite::unbox(serialize_design(cat_design)),
+      criteria = jsonlite::unbox(config$criteria)
+    ))
+
+  },
+  error = function(e) {
+    # ===============================
+    # 🔹 TRATAMENTO DE ERROS
+    # ===============================
+    trace <- paste(capture.output(traceback(2)), collapse = "\n")
+
+    cat(sprintf(
+      "[%s] ERRO em /cdm/start-assessment: %s\nCALL: %s\nTRACE:\n%s\n\n",
+      Sys.time(),
+      e$message,
+      deparse(e$call),
+      trace
+    ))
+
+    res$status <- 500
+    list(
+      status = "error",
+      message = e$message,
+      call = deparse(e$call),
+      traceback = trace
+    )
+  })
 }
+
 
 
 #* @post /irt/next-item
-function(req) {
-  e_design <- req$body$design
-  answer <- req$body$answer
-  prev_item <- req$body$previous_index
+#* @description
+#* Atualiza o estado do teste adaptativo IRT após o envio de uma nova resposta.
+#* 
+#* Este endpoint recebe:
+#* - `design`: o objeto de design serializado que representa o estado atual do teste
+#* - `answer`: a resposta dada pelo participante à questão anterior
+#* - `previous_index`: o índice do item previamente respondido
+#*
+#* O endpoint:
+#* 1. Desserializa o design do teste (`deserialize_design`)
+#* 2. Atualiza os parâmetros de estimativa do participante (`updateDesign`)
+#* 3. Registra o tempo de resposta
+#* 4. Seleciona o próximo item a ser administrado usando `mirtCAT::findNextItem`
+#*
+#* Retorna:
+#* - `next_index`: índice do próximo item (ou `0` se `stop = TRUE`)
+#* - `stop`: indica se o teste deve parar
+#* - `design`: novo design serializado
+#*
+#* Em caso de erro, retorna:
+#* - `error`: mensagem de erro
+#* - `trace`: rastreamento do erro
+function(req, res) {
+  tryCatch({
 
-  # deserialize and update design
-  cat_design <- mirtCAT::updateDesign(
-    deserialize_design(e_design),
-    new_item = prev_item,
-    new_response = answer,
-    updateTheta = TRUE
-  )
+    e_design <- req$body$design
+    answer <- req$body$answer
+    prev_item <- req$body$previous_index
 
-  now <- Sys.time()
-  cat_design$item_time_history <- append(
-    cat_design$item_time_history,
-    as.numeric(difftime(
-      now, cat_design$last_answer_time,
-      units = "secs"
+    # desserializa e atualiza o design
+    cat_design <- mirtCAT::updateDesign(
+      deserialize_design(e_design),
+      new_item = prev_item,
+      new_response = answer,
+      updateTheta = TRUE
+    )
+
+    # registra o tempo da resposta
+    now <- Sys.time()
+    cat_design$item_time_history <- append(
+      cat_design$item_time_history,
+      as.numeric(difftime(
+        now, cat_design$last_answer_time,
+        units = "secs"
+      ))
+    )
+    cat_design$last_answer_time <- now
+
+    # obtém o próximo item
+    next_index <- ifelse(
+      !cat_design$design@stop_now,
+      mirtCAT::findNextItem(cat_design),
+      0
+    )
+
+    res$status <- 200
+    return(list(
+      status = "success",
+      next_index = jsonlite::unbox(next_index),
+      stop = jsonlite::unbox(cat_design$design@stop_now),
+      design = jsonlite::unbox(serialize_design(cat_design))
     ))
-  )
-  cat_design$last_answer_time <- now
 
-  # get next item
-  next_index <- ifelse(
-    !cat_design$design@stop_now,
-    mirtCAT::findNextItem(cat_design), # confimar no CDM
-    0
-  )
-
-  return(list(
-    next_index = jsonlite::unbox(next_index),
-    stop = jsonlite::unbox(cat_design$design@stop_now),
-    design = jsonlite::unbox(serialize_design(cat_design))
-  ))
+  }, error = function(e) {
+    # captura e retorna erro detalhado
+    res$status <- 500
+    list(
+      error = e$message,
+      trace = paste(capture.output(traceback(2)), collapse = "\n")
+    )
+  })
 }
+
 
 
 #* @post /cdm/next-item
-function(req) {
-  # request arguments
-  e_design <- deserialize_design(req$body$design)
-  model <- req$body$model
-  criteria <- req$body$criteria
-  questions <- req$body$questions
-  answer <- req$body$answer
-  prev_item <- req$body$previous_index
+#* @description
+#* Atualiza o estado do teste adaptativo CDM (Cognitive Diagnostic Model) após a resposta do participante.
+#*
+#* Este endpoint recebe:
+#* - `design`: o objeto de design serializado que representa o estado atual do teste
+#* - `answer`: a resposta dada pelo participante à questão anterior
+#* - `previous_index`: o índice do item anteriormente respondido
+#* - `questions`: lista de questões com parâmetros CDM
+#* - `config`: configurações do teste, incluindo:
+#*     - `model_type`: tipo de modelo CDM (DINA, DINO, GDINA)
+#*     - `criteria`: critério de seleção (seq, random, SHE, KL, PWKL, MPWKL)
+#*     - `method`: método de estimação (EAP, MAP, MLE)
+#*
+#* O endpoint:
+#* 1. Reconstrói os parâmetros CDM (`build_cdm_parameters`)
+#* 2. Define variáveis globais de modelo e matriz Q
+#* 3. Atualiza o design do teste (`updateDesign`)
+#* 4. Registra o tempo de resposta
+#* 5. Calcula o próximo item a ser apresentado usando `customNextItem`
+#*
+#* Retorna:
+#* - `next_index`: índice do próximo item (ou `0` se `stop = TRUE`)
+#* - `stop`: indica se o teste deve parar
+#* - `criteria`: critério de seleção utilizado
+#* - `model_type`, `questions`, `q_matrix`, `design`: elementos serializados do estado atual
+#*
+#* Em caso de erro, retorna:
+#* - `error`: mensagem de erro
+#* - `trace`: rastreamento completo da pilha de execução
+function(req, res) {
+  tryCatch({
+    e_design <- req$body$design
+    answer <- req$body$answer
+    prev_item <- req$body$previous_index
 
-  qmatrix_values <- build_qmatrix(questions)
-  q_matrix <- qmatrix_values$qmatrix
-  n_skills <- qmatrix_values$n_skills
+    questions <- req$body$questions
+    qmatrix_values <- build_cdm_parameters(questions)
+    cdm_parameters <- qmatrix_values$parameters
+    q_matrix <- qmatrix_values$qmatrix
+    n_skills <- qmatrix_values$n_skills
 
-  cdm_parameters <- build_cdmparameters(questions)
+    config <- req$body$config
+    model_type <- config$model_type
+    criteria <- config$criteria
+    method <- config$method
 
-  # set CDM variables to global environment
-  model <<- model
-  criteria <<- criteria
-  cdm_parameters <<- cdm_parameters
-  q_matrix <<- q_matrix
+    allowed_methods <- c("EAP", "MAP", "MLE")
+    allowed_models <- c("DINA", "DINO", "GDINA")
+    allowed_criteria <- c("seq", "random", "SHE", "KL", "PWKL", "MPWKL")
 
-  # deserialize and update design
-  cat_design <- mirtCAT::updateDesign(
-    e_design,
-    new_item = prev_item,
-    new_response = answer,
-    updateTheta = TRUE
-  )
+    if (!method %in% allowed_methods) {
+      stop("Método não permitido, escolha entre: ", paste(allowed_methods, collapse = ", "), ".")
+    }
+    if (!model_type %in% allowed_models) {
+      stop("Modelo não permitido, escolha entre: ", paste(allowed_models, collapse = ", "), ".")
+    }
+    if (!criteria %in% allowed_criteria) {
+      stop("Critério não permitido, escolha entre: ", paste(allowed_criteria, collapse = ", "), ".")
+    }
 
+    # define variáveis globais necessárias para funções auxiliares
+    model <<- model_type
+    criteria <<- criteria
+    cdm_parameters <<- cdm_parameters
+    q_matrix <<- q_matrix
 
-  now <- Sys.time()
-  cat_design$item_time_history <- append(
-    cat_design$item_time_history,
-    as.numeric(difftime(
-      now, cat_design$last_answer_time,
-      units = "secs"
-    ))
-  )
-  cat_design$last_answer_time <- now
-
-  if (cat_design$design@stop_now) {
-    next_index <- 0
-  } else {
-    next_index <- customNextItem( # funcao usada diretamente
-      person = cat_design$person,
-      design = cat_design$design,
-      test = cat_design$test
+    # desserializa e atualiza o design
+    cat_design <- mirtCAT::updateDesign(
+      deserialize_design(e_design),
+      new_item = prev_item,
+      new_response = answer,
+      updateTheta = TRUE
     )
-  }
 
-  return(list(
-    next_index = jsonlite::unbox(next_index),
-    stop = jsonlite::unbox(cat_design$design@stop_now),
-    design = jsonlite::unbox(serialize_design(cat_design))
-  ))
+    # registra tempo de resposta
+    now <- Sys.time()
+    cat_design$item_time_history <- append(
+      cat_design$item_time_history,
+      as.numeric(difftime(
+        now, cat_design$last_answer_time,
+        units = "secs"
+      ))
+    )
+    cat_design$last_answer_time <- now
+
+    # determina o próximo item
+    if (cat_design$design@stop_now) {
+      next_index <- 0
+    } else {
+      next_index <- customNextItem(
+        person = cat_design$person,
+        design = cat_design$design,
+        test = cat_design$test
+      )
+    }
+
+    res$status <- 200
+    return(list(
+      status = "success",
+      next_index = jsonlite::unbox(next_index),
+      stop = jsonlite::unbox(cat_design$design@stop_now),
+      criteria = jsonlite::unbox(criteria),
+      model_type = jsonlite::unbox(serialize_design(model_type)),
+      questions = jsonlite::unbox(serialize_design(questions)),
+      q_matrix = jsonlite::unbox(serialize_design(q_matrix)),
+      design = jsonlite::unbox(serialize_design(cat_design))
+    ))
+
+  }, error = function(e) {
+    # captura e retorna erro detalhado
+    res$status <- 500
+    list(
+      error = e$message,
+      trace = paste(capture.output(traceback()), collapse = "\n")
+    )
+  })
 }
 
 
+
 #* @post /get-design-data
-function(req) {
-  e_design <- req$body$design
-  cat_design <- deserialize_design(e_design)
+#* @description
+#* Retorna dados resumidos do estado atual do teste adaptativo (IRT ou CDM).
+#*
+#* Este endpoint recebe:
+#* - `design`: objeto de design serializado representando o estado atual do teste.
+#*
+#* O endpoint:
+#* 1. Desserializa o objeto `design` para restaurar o estado interno do teste.
+#* 2. Extrai informações sobre:
+#*    - histórico de itens respondidos
+#*    - respostas dadas
+#*    - tempos de resposta
+#*    - histórico de estimativas de habilidade (theta)
+#*    - erro padrão das estimativas
+#*
+#* Retorna:
+#* - `item_history`: índices dos itens respondidos
+#* - `response_history`: respostas fornecidas pelo participante
+#* - `item_time_history`: tempo de resposta para cada item
+#* - `last_answer_time`: horário da última resposta
+#* - `theta_history`: histórico das estimativas de theta
+#* - `standard_error_history`: histórico dos erros-padrão associados a cada theta
+#*
+#* Em caso de erro, retorna:
+#* - `error`: mensagem de erro
+#* - `trace`: rastreamento completo da pilha de execução
+function(req, res) {
+  tryCatch({
 
-  item_history <- cat_design$person$items_answered
-  response_history <- cat_design$person$responses
-  last_answer_time <- jsonlite::unbox(cat_design$last_answer_time)
+    e_design <- req$body$design
+    cat_design <- deserialize_design(e_design)
 
-  item_time_history <- lapply(
-    cat_design$item_time_history,
-    function(x) jsonlite::unbox(x)
-  )
+    item_history <- cat_design$person$items_answered
+    response_history <- cat_design$person$responses
+    last_answer_time <- jsonlite::unbox(cat_design$last_answer_time)
 
-  theta_history <- lapply(
-    cat_design$person$thetas_history,
-    function(x) jsonlite::unbox(x)
-  )
+    item_time_history <- lapply(
+      cat_design$item_time_history,
+      function(x) jsonlite::unbox(x)
+    )
 
-  standard_error_history <- lapply(
-    cat_design$person$thetas_SE_history,
-    function(x) jsonlite::unbox(x)
-  )
+    theta_history <- lapply(
+      cat_design$person$thetas_history,
+      function(x) jsonlite::unbox(x)
+    )
 
-  return(list(
-    "item_history" = item_history,
-    "response_history" = response_history,
-    "item_time_history" = item_time_history,
-    "last_answer_time" = last_answer_time,
-    "theta_history" = theta_history,
-    "standard_error_history" = standard_error_history
-  ))
+    standard_error_history <- lapply(
+      cat_design$person$thetas_SE_history,
+      function(x) jsonlite::unbox(x)
+    )
+
+    res$status <- 200
+    return(list(
+      status = "success",
+      item_history = item_history,
+      response_history = response_history,
+      item_time_history = item_time_history,
+      last_answer_time = last_answer_time,
+      theta_history = theta_history,
+      standard_error_history = standard_error_history
+    ))
+
+  }, error = function(e) {
+    # Captura e retorna erro detalhado
+    res$status <- 500
+    list(
+      error = e$message,
+      trace = paste(capture.output(traceback()), collapse = "\n")
+    )
+  })
 }
