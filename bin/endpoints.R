@@ -109,8 +109,8 @@ function(req, res) {
       thetas.start = thetas_start,
       min_items = min_items,
       max_items = max_items,
-      max_time = max_time
-      # customNextItem = customNextItemIRT
+      max_time = max_time,
+      customNextItem = customNextItemIRT # flexibilixa o uso de critérios customizados
     )
 
     # ===============================
@@ -310,7 +310,7 @@ function(req, res) {
       max_items = max_items,
       max_time = max_time,
       customUpdateThetas = customUpdateThetas,
-      customNextItem = customNextItemCDM
+      customNextItem = customNextItemCDM # flexibilixa o uso de critérios customizados
     )
 
     # ===============================
