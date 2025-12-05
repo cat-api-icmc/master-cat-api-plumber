@@ -367,14 +367,24 @@ select_next_item <- function(
   model = "DINA",
   criteria = "seq",  # "KL", "PWKL", "MPWKL", "SHE"
   method = "MAP",
-  prior = NULL
+  prior = NULL,
+  start_item = NULL
 ) {
   
   answered <- !is.na(responses)
   candidate_items <- which(!answered)
   
   # Selection of the criterion
-  if (criteria == "seq") {
+  if (!is.null(start_item)) {
+    selected <- start_item
+    return(selected)
+  } else if (criteria == "seq") {
+    if(answered[1] != 1){
+      last_item <- max(which(!is.na(responses)))
+      selected <- last_item + 1
+      if(selected > length(responses)) selected <- candidate_items[1]
+      return(selected)
+    }
     selected <- candidate_items[1]
     return(selected)
   } else if (criteria == "random") {
@@ -426,13 +436,13 @@ select_next_item <- function(
   return(selected)
 }
 
-customNextItemCDM <- function(person, design, test) {
+# revisar funcao e remover parametros nao usados
+customNextItemCDM <- function(person, design, test, model, q_matrix, parameters, criteria, start_item = NULL) {
 
-  # from global environment:
-  model <- model
-  q_matrix <- q_matrix
-  parameters <- cdm_parameters
-  criteria <- criteria
+  # # from global environment:
+  # model <- model
+  # q_matrix <- q_matrix
+  # parameters <- cdm_parameters
   
   # from design:
   # criteria <- "seq" #design@method
@@ -445,8 +455,16 @@ customNextItemCDM <- function(person, design, test) {
   responses[responses == 1] <- 0
   responses[responses == 2] <- 1
   
-  best_item <- select_next_item(response = responses, Q=q_matrix, parameters = parameters, model = model, criteria = criteria, method = method)
-  cat("Next item selected:", best_item, "-", criteria, "\n")
+  best_item <- select_next_item(
+    response = responses, 
+    Q=q_matrix, 
+    parameters = parameters, 
+    model = model, 
+    criteria = criteria, 
+    method = method,
+    start_item = start_item
+  )
+  
   return(best_item)
 }
 

@@ -15,9 +15,8 @@ build_irt_parameters <- function(
   return(df)
 }
 
-customNextItemIRT <- function(design, person, test){
+customNextItemIRT <- function(design, person, test, criteria){
   best_item <- findNextItem(person=person, design=design, test=test, criteria=criteria)
-  cat("Next item selected:", best_item, "-", criteria, "\n")
   best_item
 }
 

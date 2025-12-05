@@ -79,14 +79,28 @@ function(req, res) {
     pattern_theta <- config$pattern_theta
 
     # stopping criteria
-    min_sem <- config$design$min_sem
-    delta_thetas <- config$design$delta_thetas
-    min_items <- config$design$min_items
-    max_items <- config$design$max_items
+    min_sem <- config$min_sem #config$design$min_sem
+    delta_thetas <- config$delta_thetas
+    min_items <- config$min_items
+    max_items <- config$max_items
     max_time <- ifelse(
-      !is.null(config$design$max_time),
-      config$design$max_time,
+      !is.null(config$max_time),
+      config$max_time,
       Inf
+    )
+
+    # print all request parameters for debugging
+    cat("Starting IRT assessment with parameters:\n"
+        , paste("Model:", model, "\n")
+        , paste("Start Item:", start_item, "\n")
+        , paste("Criteria:", criteria, "\n")
+        , paste("Thetas Start:", toString(thetas_start), "\n")
+        , paste("Pattern Theta:", toString(pattern_theta), "\n")
+        , paste("Design - min_sem:", toString(min_sem), "\n")
+        , paste("Design - delta_thetas:", toString(delta_thetas), "\n")
+        , paste("Design - min_items:", min_items, "\n")
+        , paste("Design - max_items:", max_items, "\n")
+        , paste("Design - max_time:", max_time, "\n")
     )
 
     design <- list(
@@ -95,8 +109,8 @@ function(req, res) {
       thetas.start = thetas_start,
       min_items = min_items,
       max_items = max_items,
-      max_time = max_time,
-      customNextItem = customNextItemIRT
+      max_time = max_time
+      # customNextItem = customNextItemIRT
     )
 
     # ===============================
@@ -128,13 +142,22 @@ function(req, res) {
       start_item = start_item,
       design = design
     )
+    
+    # cat("Selecting next item using criteria:", cat_design$design@criteria, "\n")
 
     cat_design$item_time_history <- list()
     cat_design$last_answer_time <- Sys.time()
 
     # Próximo item
     # next_index <- mirtCAT::findNextItem(cat_design)
-    next_index <- cat_design$design@start_item
+    # next_index <- cat_design$design@start_item  
+    next_index <- customNextItemIRT(
+        person = cat_design$person,
+        design = cat_design$design,
+        test = cat_design$test,
+        criteria = criteria
+      )
+    cat("First item selected:", next_index, "-", criteria, "\n")
 
     # ===============================
     # 🔹 RETURN SUCCESS
@@ -254,16 +277,29 @@ function(req, res) {
     }
 
     # critérios de parada
-    min_sem <- config$design$min_sem
-    delta_thetas <- config$design$delta_thetas
-    min_items <- config$design$min_items
-    max_items <- config$design$max_items
+    min_sem <- config$min_sem
+    delta_thetas <- config$delta_thetas
+    min_items <- config$min_items
+    max_items <- config$max_items
     max_time <- ifelse(
-      !is.null(config$design$max_time),
-      config$design$max_time,
+      !is.null(config$max_time),
+      config$max_time,
       Inf
     )
 
+    # print all request parameters for debugging
+    cat("Starting IRT assessment with parameters:\n"
+        , paste("Model:", model, "\n")
+        , paste("Start Item:", start_item, "\n")
+        , paste("Criteria:", criteria, "\n")
+        , paste("Thetas Start:", toString(thetas_start), "\n")
+        , paste("Pattern Theta:", toString(pattern_theta), "\n")
+        , paste("Design - min_sem:", toString(min_sem), "\n")
+        , paste("Design - delta_thetas:", toString(delta_thetas), "\n")
+        , paste("Design - min_items:", min_items, "\n")
+        , paste("Design - max_items:", max_items, "\n")
+        , paste("Design - max_time:", max_time, "\n")
+    )
     # ===============================
     # 🔹 DESIGN DO CAT
     # ===============================
@@ -300,11 +336,22 @@ function(req, res) {
       start_item = start_item,
       design = design
     )
+    cat("##############################################################")
 
     cat_design$item_time_history <- list()
     cat_design$last_answer_time <- Sys.time()
 
-    next_index <- cat_design$design@start_item
+    next_index <- customNextItemCDM(
+        person = cat_design$person,
+        design = cat_design$design,
+        test = cat_design$test,
+        model = model, 
+        q_matrix = q_matrix, 
+        parameters = cdm_parameters, 
+        criteria = criteria,
+        start_item = start_item
+      )
+    cat("First item selected:", next_index, "-", criteria, "\n")
 
     # ===============================
     # 🔹 RETORNO DE SUCESSO
@@ -384,6 +431,8 @@ function(req, res) {
     # define variáveis globais necessárias para funções auxiliares
     criteria <<- criteria
 
+
+
     # desserializa e atualiza o design
     cat_design <- mirtCAT::updateDesign(
       deserialize_design(e_design),
@@ -415,9 +464,13 @@ function(req, res) {
       next_index <- customNextItemIRT(
         person = cat_design$person,
         design = cat_design$design,
-        test = cat_design$test
+        test = cat_design$test,
+        criteria = criteria
       )
     }
+
+    if(!cat_design$design@stop_now) cat("Next item selected:", next_index, "-", criteria, "\n")
+    if(cat_design$design@stop_now) cat("Test stopped.\n")
     
     res$status <- 200
     return(list(
@@ -532,9 +585,15 @@ function(req, res) {
       next_index <- customNextItemCDM(
         person = cat_design$person,
         design = cat_design$design,
-        test = cat_design$test
+        test = cat_design$test,
+        model = model, 
+        q_matrix = q_matrix, 
+        parameters = cdm_parameters, 
+        criteria = criteria
       )
     }
+    if(!cat_design$design@stop_now) cat("Next item selected:", next_index, "-", criteria, "\n")
+    if(cat_design$design@stop_now) cat("Test stopped.\n")
 
     res$status <- 200
     return(list(
