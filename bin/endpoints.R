@@ -109,8 +109,8 @@ function(req, res) {
       thetas.start = thetas_start,
       min_items = min_items,
       max_items = max_items,
-      max_time = max_time,
-      customNextItem = customNextItemIRT # flexibilixa o uso de critérios customizados
+      max_time = max_time #,
+      # customNextItem = customNextItemIRT # flexibilixa o uso de critérios customizados
     )
 
     # ===============================
@@ -140,6 +140,8 @@ function(req, res) {
       mo,
       pattern_theta = pattern_theta,
       start_item = start_item,
+      criteria = criteria,
+      method = "EAP", # default method
       design = design
     )
     
@@ -262,6 +264,31 @@ function(req, res) {
     pattern_theta <- config$pattern_theta
     method <- config$method
 
+    # critérios de parada
+    min_sem <- config$min_sem
+    delta_thetas <- config$delta_thetas
+    min_items <- max(config$min_items, 2)
+    max_items <- config$max_items
+    max_time <- ifelse(
+      !is.null(config$max_time),
+      config$max_time,
+      Inf
+    )
+
+    # print all request parameters for debugging
+    cat("Starting CMD assessment with parameters:\n"
+        , paste("Model:", model, "\n")
+        , paste("Start Item:", start_item, "\n")
+        , paste("Criteria:", criteria, "\n")
+        , paste("Thetas Start:", toString(thetas_start), "\n")
+        , paste("Pattern Theta:", toString(pattern_theta), "\n")
+        , paste("Design - min_sem:", toString(min_sem), "\n")
+        , paste("Design - delta_thetas:", toString(delta_thetas), "\n")
+        , paste("Design - min_items:", min_items, "\n")
+        , paste("Design - max_items:", max_items, "\n")
+        , paste("Design - max_time:", max_time, "\n")
+    )
+
     allowed_methods <- c("EAP", "MAP", "MLE")
     allowed_models <- c("DINA", "DINO", "GDINA")
     allowed_criteria <- c("seq", "random", "SHE", "KL", "PWKL", "MPWKL")
@@ -276,37 +303,14 @@ function(req, res) {
       stop("Critério não permitido, escolha entre: ", paste(allowed_criteria, collapse = ", "), ".")
     }
 
-    # critérios de parada
-    min_sem <- config$min_sem
-    delta_thetas <- config$delta_thetas
-    min_items <- config$min_items
-    max_items <- config$max_items
-    max_time <- ifelse(
-      !is.null(config$max_time),
-      config$max_time,
-      Inf
-    )
-
-    # print all request parameters for debugging
-    cat("Starting IRT assessment with parameters:\n"
-        , paste("Model:", model, "\n")
-        , paste("Start Item:", start_item, "\n")
-        , paste("Criteria:", criteria, "\n")
-        , paste("Thetas Start:", toString(thetas_start), "\n")
-        , paste("Pattern Theta:", toString(pattern_theta), "\n")
-        , paste("Design - min_sem:", toString(min_sem), "\n")
-        , paste("Design - delta_thetas:", toString(delta_thetas), "\n")
-        , paste("Design - min_items:", min_items, "\n")
-        , paste("Design - max_items:", max_items, "\n")
-        , paste("Design - max_time:", max_time, "\n")
-    )
+    
     # ===============================
     # 🔹 DESIGN DO CAT
     # ===============================
     design <- list(
-      min_SEM = min_sem,
-      thetas.start = rep(0, n_skills),
-      min_items = min_items,
+      min_SEM = 0.3,
+      thetas.start = thetas_start,
+      min_items = min_items, # garante pelo menos 2 items
       max_items = max_items,
       max_time = max_time,
       customUpdateThetas = customUpdateThetas,
@@ -316,7 +320,6 @@ function(req, res) {
     # ===============================
     # 🔹 OBJETO MIRT
     # ===============================
-    #source("mirtCAT.R")  # importa modificações customizadas
     params <- generate_fake_mirt_pars(q_matrix)
     trait_cov <- diag(ncol(q_matrix))
 
@@ -336,8 +339,7 @@ function(req, res) {
       start_item = start_item,
       design = design
     )
-    cat("##############################################################")
-
+  
     cat_design$item_time_history <- list()
     cat_design$last_answer_time <- Sys.time()
 
@@ -348,8 +350,7 @@ function(req, res) {
         model = model, 
         q_matrix = q_matrix, 
         parameters = cdm_parameters, 
-        criteria = criteria,
-        start_item = start_item
+        criteria = criteria
       )
     cat("First item selected:", next_index, "-", criteria, "\n")
 
@@ -375,13 +376,13 @@ function(req, res) {
     # ===============================
     trace <- paste(capture.output(traceback(2)), collapse = "\n")
 
-    cat(sprintf(
-      "[%s] ERRO em /cdm/start-assessment: %s\nCALL: %s\nTRACE:\n%s\n\n",
-      Sys.time(),
-      e$message,
-      deparse(e$call),
-      trace
-    ))
+    # cat(sprintf(
+    #   "[%s] ERRO em /cdm/start-assessment: %s\nCALL: %s\nTRACE:\n%s\n\n",
+    #   Sys.time(),
+    #   e$message,
+    #   deparse(e$call),
+    #   trace
+    # ))
 
     res$status <- 500
     list(
@@ -425,13 +426,8 @@ function(req, res) {
     answer <- req$body$answer
     prev_item <- req$body$previous_index
 
-    config <- req$body$config
-    criteria <- config$criteria
-
-    # define variáveis globais necessárias para funções auxiliares
-    criteria <<- criteria
-
-
+    # config <- req$body$config # nao é mais necessário
+    # criteria <- config$criteria # nao é mais necessário
 
     # desserializa e atualiza o design
     cat_design <- mirtCAT::updateDesign(
@@ -440,6 +436,8 @@ function(req, res) {
       new_response = answer,
       updateTheta = TRUE
     )
+
+    criteria <- cat_design$design@criteria
 
     # registra o tempo da resposta
     now <- Sys.time()
@@ -673,7 +671,6 @@ function(req, res) {
 
     res$status <- 200
     return(list(
-      status = "success",
       item_history = item_history,
       response_history = response_history,
       item_time_history = item_time_history,

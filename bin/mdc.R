@@ -359,7 +359,6 @@ SHE_criteria <- function(item_index, prob_matrix, posterior) {
   return(expected_entropy)
 }
 
-
 select_next_item <- function(
   responses,
   Q,
@@ -367,24 +366,14 @@ select_next_item <- function(
   model = "DINA",
   criteria = "seq",  # "KL", "PWKL", "MPWKL", "SHE"
   method = "MAP",
-  prior = NULL,
-  start_item = NULL
+  prior = NULL
 ) {
   
   answered <- !is.na(responses)
   candidate_items <- which(!answered)
   
   # Selection of the criterion
-  if (!is.null(start_item)) {
-    selected <- start_item
-    return(selected)
-  } else if (criteria == "seq") {
-    if(answered[1] != 1){
-      last_item <- max(which(!is.na(responses)))
-      selected <- last_item + 1
-      if(selected > length(responses)) selected <- candidate_items[1]
-      return(selected)
-    }
+  if (criteria == "seq") {
     selected <- candidate_items[1]
     return(selected)
   } else if (criteria == "random") {
@@ -437,7 +426,7 @@ select_next_item <- function(
 }
 
 # revisar funcao e remover parametros nao usados
-customNextItemCDM <- function(person, design, test, model, q_matrix, parameters, criteria, start_item = NULL) {
+customNextItemCDM <- function(person, design, test, model, q_matrix, parameters, criteria) {
 
   # # from global environment:
   # model <- model
@@ -445,15 +434,26 @@ customNextItemCDM <- function(person, design, test, model, q_matrix, parameters,
   # parameters <- cdm_parameters
   
   # from design:
-  # criteria <- "seq" #design@method
+  start_item <- ifelse(is.null(is.numeric(design@start_item)), design@start_item, as.numeric(design@start_item))
+  
   method <- design@method
   
   # Dados do teste
   responses <- extract.mirtCAT(person, 'raw_responses')
-  
   responses <- as.integer(responses)
   responses[responses == 1] <- 0
   responses[responses == 2] <- 1
+
+  is_first_item <- all(is.na(responses))
+  
+  if(is_first_item && is.character(start_item)) {
+    criteria <- start_item
+  }else if(is_first_item && start_item == 1) {
+    best_item <- 1
+    return(best_item)
+  }else if(is_first_item && start_item != 1 && criteria == "seq") {
+    stop("start_item must equal 1 with seq criteria")
+  }
   
   best_item <- select_next_item(
     response = responses, 
@@ -461,32 +461,8 @@ customNextItemCDM <- function(person, design, test, model, q_matrix, parameters,
     parameters = parameters, 
     model = model, 
     criteria = criteria, 
-    method = method,
-    start_item = start_item
+    method = method
   )
   
   return(best_item)
 }
-
-
-# customNextItem <- function(person, design, test){
-#     # print(slotNames(person))
-#     # print(slotNames(design))
-#     # print(slotNames(test))
-
-#     # CAT_criteria <- design@criteria # precisa fazer uma gambs para criterios CDM, o mirt nao aceita novos
-#     # cat("Next item criteria:", CAT_criteria, "\n")
-
-#     items_in_bank <- extract.mirtCAT(person, 'items_in_bank')
-#     items_answered <- extract.mirtCAT(person, 'items_answered')
-    
-
-#     ret = items_in_bank[1]
-
-#     # objective <- computeCriteria(person=person, design=design, test=test, criteria = 'seq')
-#     # ret <- findNextItem(person=person, test=test, design=design, objective=objective)
-    
-
-#     cat("Next CDM item:", ret, "\n")
-#     ret
-# }
