@@ -654,30 +654,25 @@ function(req, res) {
     response_history <- cat_design$person$responses
     last_answer_time <- jsonlite::unbox(cat_design$last_answer_time)
 
-    item_time_history <- lapply(
-      cat_design$item_time_history,
-      function(x) jsonlite::unbox(x)
-    )
+    item_time_history <- cat_design$item_time_history
 
-    theta_history <- lapply(
-      cat_design$person$thetas_history,
-      function(x) jsonlite::unbox(x)
-    )
+    theta_history <- cat_design$person$thetas_history
 
-    standard_error_history <- lapply(
-      cat_design$person$thetas_SE_history,
-      function(x) jsonlite::unbox(x)
-    )
+    standard_error_history <- cat_design$person$thetas_SE_history
 
     res$status <- 200
-    return(list(
+
+    response <- list(
       item_history = item_history,
       response_history = response_history,
       item_time_history = item_time_history,
       last_answer_time = last_answer_time,
       theta_history = theta_history,
       standard_error_history = standard_error_history
-    ))
+    )
+
+
+    return(response)
 
   }, error = function(e) {
     # Captura e retorna erro detalhado

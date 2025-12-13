@@ -67,7 +67,34 @@ simulate_assessment <- function(){
 
 test <- simulate_assessment()
 
+install.packages("RMySQL")
+library(DBI)
 
+con <- DBI::dbConnect(
+  RMySQL::MySQL(), 
+  dbname = "cat_api", 
+  host = "cat.icmc.usp.br",
+  user = "admin",
+  password = "A+6RSbM=")
+
+test <- DBI::dbGetQuery(
+  conn = con,
+  statement = 'select 
+                mdd.id,
+                mdd.created,
+                mdd.last_answer_time,
+                mdd.item_time_history,
+                mdd.response_history,
+                mdd.theta_history,
+                mdd.standard_error_history,
+                mdd.item_time_history
+            from mirt_design_data mdd
+            inner join user_has_assessments uha
+                on uha.id = mdd.user_assessment_id 
+            where uha.uuid = "9e79179d-998d-473e-8898-baa73dc06517"'
+)
+
+test
 
 
 
@@ -85,3 +112,5 @@ test <- get_next_item_api(test, 1)
 test <- get_next_item_api(test, 1)
 
 
+
+# 
