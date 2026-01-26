@@ -1,13 +1,4 @@
 #* @get /hc
-#* @description
-#* Endpoint de verificação de saúde (Health Check) da API.
-#*
-#* Retorna:
-#* - `status`: mensagem indicando que a API está saudável, incluindo versões de R, Plumber e da aplicação embutidas no texto.
-#*
-#* Em caso de erro, retorna:
-#* - `error`: mensagem de erro
-#* - `trace`: rastreamento da pilha de execução
 function(res) {
   tryCatch({
 
@@ -32,35 +23,6 @@ function(res) {
   })
 }
 
-
-#* @apiTitle IRT Assessment API
-#* @apiDescription API responsável por iniciar um teste adaptativo computadorizado (CAT)
-#* baseado em modelos de Resposta ao Item (IRT), como 1PL, 2PL e 3PL.
-#* 
-#* O endpoint `/irt/start-assessment` recebe um conjunto de parâmetros
-#* de itens e de configuração do teste, cria o objeto IRT e o design do CAT,
-#* e retorna o próximo item a ser apresentado ao participante.
-#*
-#* @param req Corpo da requisição contendo:
-#*   - `questions`: lista com parâmetros IRT em `questions$params`, contendo:
-#*       - `irt_discrimination`: vetor de discriminações
-#*       - `irt_difficulty`: vetor de dificuldades
-#*       - `irt_guess`: vetor de parâmetros de acerto ao acaso
-#*   - `config`: configurações gerais do teste adaptativo, incluindo:
-#*       - `model_type`: tipo de modelo IRT (1PL, 2PL ou 3PL)
-#*       - `criteria`: critério de seleção do próximo item
-#*       - `start_item`: índice do primeiro item
-#*       - `thetas_start`: valores iniciais de theta
-#*       - `pattern_theta`: padrão de theta em avaliações multidimensionais
-#*       - `design`: critérios de parada (`min_sem`, `delta_thetas`, `min_items`, `max_items`, `max_time`)
-#*
-#* @return JSON com:
-#*   - `status`: "success" em caso de sucesso
-#*   - `next_index`: índice do próximo item
-#*   - `stop`: flag indicando se o teste deve parar
-#*   - `design`: design serializado do CAT
-#*   - Em caso de erro: `status = "error"`, `message`, `call` e `traceback`
-#*
 #* @post /irt/start-assessment
 function(req, res) {
   tryCatch({
@@ -77,6 +39,9 @@ function(req, res) {
 
     thetas_start <- config$thetas_start
     pattern_theta <- config$pattern_theta
+
+    # Shadow CAT and Constraints 
+    constr_fun <- build_constr_fun(config$constr_fun)
 
     # stopping criteria
     min_sem <- config$min_sem #config$design$min_sem
@@ -101,6 +66,7 @@ function(req, res) {
         , paste("Design - min_items:", min_items, "\n")
         , paste("Design - max_items:", max_items, "\n")
         , paste("Design - max_time:", max_time, "\n")
+        , paste("Design - constr_fun: \n", paste(deparse(constr_fun), collapse = ''), "\n")
     )
 
     design <- list(
@@ -109,7 +75,8 @@ function(req, res) {
       thetas.start = thetas_start,
       min_items = min_items,
       max_items = max_items,
-      max_time = max_time #,
+      max_time = max_time,
+      constr_fun = constr_fun
       # customNextItem = customNextItemIRT # flexibilixa o uso de critérios customizados
     )
 
@@ -136,6 +103,7 @@ function(req, res) {
     # ===============================
     # 🔹 CAT DESIGN
     # ===============================
+    
     cat_design <- create_cat_design(
       mo,
       pattern_theta = pattern_theta,
@@ -198,47 +166,6 @@ function(req, res) {
   })
 }
 
-
-#* @apiTitle CDM Assessment API
-#* @apiDescription
-#* Inicia um teste adaptativo computadorizado (CAT) baseado em Modelos de Diagnóstico Cognitivo (CDM),
-#* como DINA, DINO e GDINA.
-#*
-#* O endpoint `/cdm/start-assessment` recebe os parâmetros dos itens (Q-matrix e parâmetros do modelo),
-#* as configurações do teste e retorna o índice do próximo item a ser administrado,
-#* juntamente com o design serializado do CAT.
-#*
-#* @param req Corpo da requisição contendo:
-#*   - `questions`: lista de questões com parâmetros e Q-matrix (utilizada por `build_cdm_parameters`)
-#*   - `config`: lista com parâmetros de configuração, incluindo:
-#*       - `model_type`: tipo de modelo CDM (DINA, DINO, GDINA)
-#*       - `start_item`: índice do primeiro item a ser aplicado
-#*       - `criteria`: critério de seleção (validado)
-#*       - `method`: método de estimação (EAP, MAP, MLE)
-#*       - `thetas_start`: vetor inicial de habilidades (opcional)
-#*       - `pattern_theta`: padrão de habilidades multidimensionais (opcional)
-#*       - `design`: critérios de parada (`min_sem`, `min_items`, `max_items`, `max_time`)
-#*
-#* Observações:
-#* - O design interno utiliza `min_SEM`, `thetas.start` e funções customizadas (`customUpdateThetas`, `customNextItemCDM`).
-#* - Na inicialização é usado `criteria = "custom"` internamente; o próximo item inicial é `start_item`.
-#*
-#* @return JSON com:
-#*   - `status`: "success" em caso de sucesso
-#*   - `next_index`: índice do próximo item (igual a `start_item` na inicialização)
-#*   - `stop`: flag indicando se o teste deve parar
-#*   - `model_type`: modelo utilizado (serializado)
-#*   - `questions`: lista de questões (serializada)
-#*   - `q_matrix`: matriz Q (serializada)
-#*   - `design`: design do CAT (serializado)
-#*   - `criteria`: critério de seleção informado na configuração
-#*
-#* Em caso de erro, retorna:
-#*   - `status = "error"`
-#*   - `message`: mensagem do erro
-#*   - `call`: expressão que causou o erro
-#*   - `traceback`: pilha de chamadas
-#*
 #* @post /cdm/start-assessment
 function(req, res) {
   tryCatch({
@@ -264,10 +191,16 @@ function(req, res) {
     pattern_theta <- config$pattern_theta
     method <- config$method
 
+    # Shadow CAT and Constraints 
+    constr_fun <- build_constr_fun(config$constr_fun)
+    
     # critérios de parada
-    min_sem <- config$min_sem
-    delta_thetas <- config$delta_thetas
-    min_items <- max(config$min_items, 2)
+    threshold <<- c(0.7, 0.1) #config$threshold # c(0.7, 0.1)
+    # threshold:
+    # length 1 -> max posterior
+    # length 2 -> dual rule
+    
+    min_items <- config$min_items #max(config$min_items, 2)
     max_items <- config$max_items
     max_time <- ifelse(
       !is.null(config$max_time),
@@ -282,11 +215,11 @@ function(req, res) {
         , paste("Criteria:", criteria, "\n")
         , paste("Thetas Start:", toString(thetas_start), "\n")
         , paste("Pattern Theta:", toString(pattern_theta), "\n")
-        , paste("Design - min_sem:", toString(min_sem), "\n")
-        , paste("Design - delta_thetas:", toString(delta_thetas), "\n")
+        , paste("Design - threshold:", toString(threshold), "\n")
         , paste("Design - min_items:", min_items, "\n")
         , paste("Design - max_items:", max_items, "\n")
         , paste("Design - max_time:", max_time, "\n")
+        , paste("Design - constr_fun: \n", paste(deparse(constr_fun), collapse = ''), "\n")
     )
 
     allowed_methods <- c("EAP", "MAP", "MLE")
@@ -303,18 +236,20 @@ function(req, res) {
       stop("Critério não permitido, escolha entre: ", paste(allowed_criteria, collapse = ", "), ".")
     }
 
-    
+    # print(test_properties)
     # ===============================
     # 🔹 DESIGN DO CAT
     # ===============================
     design <- list(
-      min_SEM = 0.3,
+      # min_SEM = min_sem,
       thetas.start = thetas_start,
       min_items = min_items, # garante pelo menos 2 items
       max_items = max_items,
       max_time = max_time,
-      customUpdateThetas = customUpdateThetas,
-      customNextItem = customNextItemCDM # flexibilixa o uso de critérios customizados
+      constr_fun = constr_fun,
+      customUpdateThetas = customUpdateSkills,
+      customStop = customStopCDM,
+      customNextItem = customNextItemCDM # flexibiliza o uso de critérios customizados
     )
 
     # ===============================
@@ -336,7 +271,7 @@ function(req, res) {
       mo,
       pattern_theta = rep(0, n_skills),
       method = method,
-      start_item = start_item,
+      # start_item = start_item,
       design = design
     )
   
@@ -350,9 +285,11 @@ function(req, res) {
         model = model, 
         q_matrix = q_matrix, 
         parameters = cdm_parameters, 
-        criteria = criteria
+        criteria = criteria,
+        prior = NULL,
+        start_item = start_item
       )
-    cat("First item selected:", next_index, "-", criteria, "\n")
+    cat("First item selected:", next_index, "-", start_item, "\n")
 
     # ===============================
     # 🔹 RETORNO DE SUCESSO
@@ -394,31 +331,7 @@ function(req, res) {
   })
 }
 
-
-
 #* @post /irt/next-item
-#* @description
-#* Atualiza o estado do teste adaptativo IRT após o envio de uma nova resposta.
-#* 
-#* Este endpoint recebe:
-#* - `design`: o objeto de design serializado que representa o estado atual do teste
-#* - `answer`: a resposta dada pelo participante à questão anterior
-#* - `previous_index`: o índice do item previamente respondido
-#*
-#* O endpoint:
-#* 1. Desserializa o design do teste (`deserialize_design`)
-#* 2. Atualiza os parâmetros de estimativa do participante (`updateDesign`)
-#* 3. Registra o tempo de resposta
-#* 4. Seleciona o próximo item a ser administrado usando `mirtCAT::findNextItem`
-#*
-#* Retorna:
-#* - `next_index`: índice do próximo item (ou `0` se `stop = TRUE`)
-#* - `stop`: indica se o teste deve parar
-#* - `design`: novo design serializado
-#*
-#* Em caso de erro, retorna:
-#* - `error`: mensagem de erro
-#* - `trace`: rastreamento do erro
 function(req, res) {
   tryCatch({
 
@@ -466,6 +379,7 @@ function(req, res) {
         criteria = criteria
       )
     }
+    if(is.na(next_index)) cat_design$design@stop_now <- TRUE
 
     if(!cat_design$design@stop_now) cat("Next item selected:", next_index, "-", criteria, "\n")
     if(cat_design$design@stop_now) cat("Test stopped.\n")
@@ -488,40 +402,10 @@ function(req, res) {
   })
 }
 
-
-
 #* @post /cdm/next-item
-#* @description
-#* Atualiza o estado do teste adaptativo CDM (Cognitive Diagnostic Model) após a resposta do participante.
-#*
-#* Este endpoint recebe:
-#* - `design`: o objeto de design serializado que representa o estado atual do teste
-#* - `answer`: a resposta dada pelo participante à questão anterior
-#* - `previous_index`: o índice do item anteriormente respondido
-#* - `questions`: lista de questões com parâmetros CDM
-#* - `config`: configurações do teste, incluindo:
-#*     - `model_type`: tipo de modelo CDM (DINA, DINO, GDINA)
-#*     - `criteria`: critério de seleção (seq, random, SHE, KL, PWKL, MPWKL)
-#*     - `method`: método de estimação (EAP, MAP, MLE)
-#*
-#* O endpoint:
-#* 1. Reconstrói os parâmetros CDM (`build_cdm_parameters`)
-#* 2. Define variáveis globais de modelo e matriz Q
-#* 3. Atualiza o design do teste (`updateDesign`)
-#* 4. Registra o tempo de resposta
-#* 5. Calcula o próximo item a ser apresentado usando `customNextItemCDM`
-#*
-#* Retorna:
-#* - `next_index`: índice do próximo item (ou `0` se `stop = TRUE`)
-#* - `stop`: indica se o teste deve parar
-#* - `criteria`: critério de seleção utilizado
-#* - `model_type`, `questions`, `q_matrix`, `design`: elementos serializados do estado atual
-#*
-#* Em caso de erro, retorna:
-#* - `error`: mensagem de erro
-#* - `trace`: rastreamento completo da pilha de execução
 function(req, res) {
   tryCatch({
+    cat(' --------- CDM Next Item Request --------- \n')
     e_design <- req$body$design
     answer <- req$body$answer
     prev_item <- req$body$previous_index
@@ -564,6 +448,8 @@ function(req, res) {
       new_response = answer,
       updateTheta = TRUE
     )
+    # cat(paste0('skill_est2 (nresps: ',len(cat_design$person$responses),'): \n'))
+    # print(cat_design$person$thetas[1, ])
 
     # registra tempo de resposta
     now <- Sys.time()
@@ -587,9 +473,13 @@ function(req, res) {
         model = model, 
         q_matrix = q_matrix, 
         parameters = cdm_parameters, 
-        criteria = criteria
+        criteria = criteria,
+        prior = NULL,
+        start_item = NULL
       )
     }
+    if(is.na(next_index)) cat_design$design@stop_now <- TRUE
+
     if(!cat_design$design@stop_now) cat("Next item selected:", next_index, "-", criteria, "\n")
     if(cat_design$design@stop_now) cat("Test stopped.\n")
 
@@ -615,53 +505,30 @@ function(req, res) {
   })
 }
 
-
-
 #* @post /get-design-data
-#* @description
-#* Retorna dados resumidos do estado atual do teste adaptativo (IRT ou CDM).
-#*
-#* Este endpoint recebe:
-#* - `design`: objeto de design serializado representando o estado atual do teste.
-#*
-#* O endpoint:
-#* 1. Desserializa o objeto `design` para restaurar o estado interno do teste.
-#* 2. Extrai informações sobre:
-#*    - histórico de itens respondidos
-#*    - respostas dadas
-#*    - tempos de resposta
-#*    - histórico de estimativas de habilidade (theta)
-#*    - erro padrão das estimativas
-#*
-#* Retorna:
-#* - `item_history`: índices dos itens respondidos
-#* - `response_history`: respostas fornecidas pelo participante
-#* - `item_time_history`: tempo de resposta para cada item
-#* - `last_answer_time`: horário da última resposta
-#* - `theta_history`: histórico das estimativas de theta
-#* - `standard_error_history`: histórico dos erros-padrão associados a cada theta
-#*
-#* Em caso de erro, retorna:
-#* - `error`: mensagem de erro
-#* - `trace`: rastreamento completo da pilha de execução
 function(req, res) {
   tryCatch({
+    cat("Getting assessment data\n")
 
     e_design <- req$body$design
     cat_design <- deserialize_design(e_design)
 
     item_history <- cat_design$person$items_answered
     response_history <- cat_design$person$responses
+    
     last_answer_time <- jsonlite::unbox(cat_design$last_answer_time)
 
-    item_time_history <- cat_design$item_time_history
-
+    item_time_history <- lapply(
+      cat_design$item_time_history,
+      function(x) jsonlite::unbox(x)
+    )
+    
     theta_history <- cat_design$person$thetas_history
 
     standard_error_history <- cat_design$person$thetas_SE_history
 
     res$status <- 200
-
+    
     response <- list(
       item_history = item_history,
       response_history = response_history,
@@ -670,7 +537,6 @@ function(req, res) {
       theta_history = theta_history,
       standard_error_history = standard_error_history
     )
-
 
     return(response)
 

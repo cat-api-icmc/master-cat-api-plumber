@@ -1,34 +1,42 @@
+# --- CDM parameter building function ---
 build_cdm_parameters <- function(questions) {
-  slip <- questions$params$cdm_slipping
+
+  if (is.null(questions$params))
+    stop("questions$params is missing.")
+
+  slip  <- questions$params$cdm_slipping
   guess <- questions$params$cdm_guessing
-
   cdm_qmatrix <- questions$params$cdm_qmatrix
-  max_index <- max(sapply(cdm_qmatrix, max))
-  qmatrix <- matrix(0, nrow=length(cdm_qmatrix), ncol=max_index)
-  for(i in 1:length(cdm_qmatrix)) {
-    for(j in cdm_qmatrix[i]) {
-      qmatrix[i,j] = 1
-    }
-  }
 
-  if(is.null(slip) || is.null(guess)) {
+  if (is.null(slip) || is.null(guess))
     stop("Slip and Guess parameters must be provided for CDM models.")
+
+  if (!is.list(cdm_qmatrix) || length(cdm_qmatrix) == 0)
+    stop("cdm_qmatrix must be a non-empty list.")
+
+  max_index <- max(sapply(cdm_qmatrix, max))
+  qmatrix <- matrix(0, nrow = length(cdm_qmatrix), ncol = max_index)
+
+  for (i in seq_along(cdm_qmatrix)) {
+    if (any(cdm_qmatrix[[i]] <= 0))
+      stop("Q-matrix indices must be positive integers.")
+    qmatrix[i, cdm_qmatrix[[i]]] <- 1
   }
 
-  pars <- list(
-    slip = slip,
-    guess = guess
-  )
+  if (length(slip) != nrow(qmatrix) || length(guess) != nrow(qmatrix))
+    stop("Slip and guess must have length equal to number of items.")
 
-  # Converte uma lista de vetores em uma lista de listas por posição
-  parameters <- lapply(seq_along(pars[[1]]), function(i) {
-    lapply(pars, function(x) x[[i]])
+  parameters <- lapply(seq_len(nrow(qmatrix)), function(i) {
+    list(slip = slip[[i]], guess = guess[[i]])
   })
 
-  return(list(parameters=parameters, qmatrix=qmatrix, n_skills=max_index))
+  list(
+    parameters = parameters,
+    qmatrix    = qmatrix,
+    n_skills   = max_index
+  )
 }
 
-# DINA improvement
 generate_fake_mirt_pars <- function(q_matrix){
     n_itens <- nrow(q_matrix)
     n_skills <- ncol(q_matrix)
@@ -37,80 +45,131 @@ generate_fake_mirt_pars <- function(q_matrix){
     return(mirt_pars)
 }
 
+# --- CDM estimation functions ---
 rowProds <- function(x) apply(x, 1, prod)
 get_prob_matrix <- function(Q, parameters, skill_patterns, model) {
-    J <- nrow(Q)
-    n_alpha <- nrow(skill_patterns)
-    K <- ncol(Q)
+  
+  # -----------------------------
+  # Basic checks
+  # -----------------------------
+  if (!is.matrix(Q))
+    stop("Q must be a matrix (items x attributes).")
+  
+  if (!is.matrix(skill_patterns))
+    stop("skill_patterns must be a matrix (patterns x attributes).")
+  
+  model <- toupper(model)
+  if (!model %in% c("DINA", "DINO", "GDINA"))
+    stop("Model must be 'DINA', 'DINO', or 'GDINA'.")
+  
+  J <- nrow(Q)
+  K <- ncol(Q)
+  n_alpha <- nrow(skill_patterns)
+  
+  if (ncol(skill_patterns) != K)
+    stop("Number of attributes in Q and skill_patterns do not match.")
+  
+  # -----------------------------
+  # Check Q-matrix validity
+  # -----------------------------
+  if (any(rowSums(Q) == 0)) {
+    stop("Q-matrix contains items with no required attributes (rowSums(Q) == 0).")
+  }
+  
+  # -----------------------------
+  # DINA / DINO
+  # -----------------------------
+  if (model %in% c("DINA", "DINO")) {
     
-    if (model %in% c("DINA", "DINO")) {
-
-      slip <- unname(unlist(lapply(parameters, function(row) unlist(row["slip"]))))
-      guess <- unname(unlist(lapply(parameters, function(row) unlist(row["guess"]))))
+    # Extract parameters safely
+    slip  <- sapply(parameters, function(x) x$slip)
+    guess <- sapply(parameters, function(x) x$guess)
+    
+    if (length(slip) != J || length(guess) != J)
+      stop("Length of slip/guess parameters must match number of items.")
+    
+    if (any(is.na(slip)) || any(is.na(guess)))
+      stop("Missing slip or guess parameters.")
+    
+    if (any(slip <= 0 | slip >= 1 | guess <= 0 | guess >= 1))
+      stop("Slip and guess parameters must be in (0,1).")
+    
+    # Required skill counts: J x n_alpha
+    required_matrix <- Q %*% t(skill_patterns)
+    n_required_skills <- rowSums(Q)
+    
+    if (model == "DINA") {
+      # Conjunctive rule
+      mastered <- required_matrix == n_required_skills
       
-      # Matrix of required skill counts per item
-      required_matrix <- t(skill_patterns %*% t(Q))   
-      n_required_skills <- rowSums(Q)
+    } else {
+      # DINO: disjunctive rule
+      mastered <- required_matrix > 0
+    }
+    
+    # Probability matrix: J x n_alpha
+    prob_matrix <- mastered * (1 - slip) + (!mastered) * guess
+    
+    return(prob_matrix)
+  }
+  
+  # -----------------------------
+  # G-DINA
+  # -----------------------------
+  if (model == "GDINA") {
+    
+    if (length(parameters) != J)
+      stop("For GDINA, parameters must be a list of length J (one per item).")
+    
+    prob_matrix <- matrix(NA_real_, nrow = J, ncol = n_alpha)
+    
+    for (j in seq_len(J)) {
       
+      required <- Q[j, ] == 1
       
-      # required_matrix[9,13] # item 9, alpha 13 requires 2
-      # mastered[9,13] # FALSE: alpha 13 does not match DINA requirements for item 9
-      # 
-      # required_matrix[2,5] # item 2, alpha 5 requires 1
-      # mastered[2,5] # TRUE: alpha 5 matches DINA requirements for item 2
+      if (sum(required) == 0)
+        stop(paste("Item", j, "has no required attributes in Q-matrix."))
       
-      
-      if (model == "DINA") {
-        # Mastery only if all required skills are present
-        mastered <- required_matrix == n_required_skills  
-        prob_matrix <- (mastered * (1 - slip)) + ((1 - mastered) * guess)
+      for (a in seq_len(n_alpha)) {
         
-      } else if (model == "DINO") {
-        # Mastery if at least one required skill is present
-        mastered <- t(t(required_matrix) > 0) 
-        prob_matrix <- (mastered * (1 - slip)) + ((1 - mastered) * guess)
-      }
-      
-      return(prob_matrix) 
-    }
-    
-    else if (model == "GDINA") {
-      prob_matrix <- matrix(NA, ncol = n_alpha, nrow = J)
-      
-      for (j in 1:J) {
-        required <- Q[j, ] == 1
-        for (a in 1:n_alpha) {
-          pattern <- skill_patterns[a, required]
-          key <- paste0(pattern, collapse = "")
-          
-          # The parameter list must contain keys like "00", "01", ..., depending on the item
-          prob_matrix[j, a] <- parameters[[j]][[key]]
+        pattern <- skill_patterns[a, required]
+        key <- paste0(pattern, collapse = "")
+        
+        if (!key %in% names(parameters[[j]])) {
+          stop(
+            paste(
+              "Missing GDINA parameter for item", j,
+              "and latent pattern", key
+            )
+          )
         }
+        
+        prob_matrix[j, a] <- parameters[[j]][[key]]
       }
       
-      return(prob_matrix) 
+      if (any(prob_matrix[j, ] <= 0 | prob_matrix[j, ] >= 1)) {
+        stop(paste("Invalid GDINA probabilities for item", j, 
+                   "(must be in (0,1))."))
+      }
     }
     
-    else {
-      stop("Model must be 'DINA', 'DINO', or 'GDINA'")
-    }
+    return(prob_matrix)
+  }
 }
 
 get_likelihood <- function(responses, prob_matrix) {
-    p <- t(prob_matrix)
-
-    likelihoods <- matrix(1, nrow = nrow(responses), ncol = nrow(p))
+  p <- t(prob_matrix)
+  
+  likelihoods <- matrix(1, nrow = nrow(responses), ncol = nrow(p))
+  
+  for(r in 1:nrow(responses)){
+    temp_resp <- matrix(responses[r, ], ncol=ncol(p), nrow=nrow(p), byrow = T)
     
-    for(r in 1:nrow(responses)){
-      temp_resp <- matrix(responses[r, ], ncol=ncol(p), nrow=nrow(p), byrow = T)
-      
-      #print(dim(p))
-      #print(dim(temp_resp))
-      
-      likelihoods[r, ] <- rowProds((p^temp_resp) * ((1 - p)^(1 - temp_resp)))  
-    }
+    likelihoods[r, ] <- rowProds((p^temp_resp) * ((1 - p)^(1 - temp_resp))) 
     
-    return(likelihoods)
+  }
+  
+  return(likelihoods)
 }
 
 # Posterior function
@@ -121,164 +180,146 @@ get_posterior <- function(likelihoods, prior) {
     return(posterior)
 }
 
-estimateSkills <- function(response, Q, parameters, model = "DINA", method = "EAP", prior = NULL) {
-  # response: matrix (respondents x items)
-  # Q: Q-matrix (items x attributes)
-  # parameters: list with slip/guess (DINA/DINO) or list of lists (GDINA)
-  # model: "DINA", "DINO", "GDINA"
-  # method: "MLE", "MAP", "EAP"
-  # prior: vector of size 2^K or NULL
-  
-  # Inputs
-  J <- nrow(Q)
+estimate_alpha <- function(
+  responses,
+  Q,
+  parameters,
+  model = "DINA",
+  method = c("MLE", "MAP", "EAP"),
+  prior = NULL
+) {
+
+  method <- match.arg(method)
+
+  responses <- as.matrix(responses)
+  N <- nrow(responses)
   K <- ncol(Q)
-  response <- if (is.matrix(response)) response else matrix(response, nrow = 1)
-  n_resp <- nrow(response)
 
-  # Generate possible skill profiles
-  skill_patterns <- as.matrix(expand.grid(replicate(K, 0:1, simplify = FALSE)))
-  colnames(skill_patterns) <- paste0("A", 1:K)
-  n_alpha <- nrow(skill_patterns)
-  
-  # Uniform prior (Bayesian cases)
-  if (is.null(prior)) prior <- rep(1 / n_alpha, n_alpha)
-  
+  skill_patterns <- as.matrix(
+    expand.grid(replicate(K, 0:1, simplify = FALSE))
+  )
+  n_profiles <- nrow(skill_patterns)
+
+  if (is.null(prior))
+    prior <- rep(1 / n_profiles, n_profiles)
+
   prob_matrix <- get_prob_matrix(Q, parameters, skill_patterns, model)
-  likelihoods <- get_likelihood(response, prob_matrix)
-  
-  if (method == "MLE") {
-    idx <- apply(likelihoods, 1, which.max)
-    #print(head(likelihoods))
-    MLE <- skill_patterns[idx, , drop = FALSE]
-  
-    # Variância aproximada para MLE baseada na dispersão das verossimilhanças
-    
-    posterior_like <- likelihoods / rowSums(likelihoods)
-    E_alpha <- posterior_like %*% skill_patterns
-    E_alpha2 <- posterior_like %*% (skill_patterns^2)
-    SE_MLE <- sqrt(E_alpha2 - E_alpha^2)
-    
-    colnames(MLE) <- paste0("F",1:K)
-    colnames(SE_MLE) <- paste0("F",1:K,"_SE")
-    
-    return(cbind(MLE = MLE, SE = SE_MLE))
-    
-    
-  } else if (method == "MAP") {
-    posteriors <- get_posterior(likelihoods, prior)
-    idx <- apply(posteriors, 1, which.max)
-    MAP <- skill_patterns[idx, , drop = FALSE]
-    
-    E_alpha <- posteriors %*% skill_patterns
-    E_alpha2 <- posteriors %*% (skill_patterns^2)
-    SE_MAP <- sqrt(E_alpha2 - E_alpha^2)
-    
-    colnames(MAP) <- paste0("F",1:K)
-    colnames(SE_MAP) <- paste0("F",1:K,"_SE")
-    
-    return(cbind(MAP = MAP, SE = SE_MAP))
-    
-  } else if (method == "EAP") {
-    posteriors <- get_posterior(likelihoods, prior)
-    EAP <- posteriors %*% skill_patterns  # n_resp x K
-    
-    E_alpha <- posteriors %*% skill_patterns
-    E_alpha2 <- posteriors %*% (skill_patterns^2)
-    SE_EAP <- sqrt(E_alpha2 - E_alpha^2)
-    
-    colnames(EAP) <- paste0("F",1:K)
-    colnames(SE_EAP) <- paste0("F",1:K,"_SE")
 
-    return(cbind(EAP = EAP, SE = SE_EAP))
-    
-  } else {
-    stop("Unknown estimation method.")
+  likelihood <- matrix(NA_real_, N, n_profiles)
+  posterior  <- matrix(NA_real_, N, n_profiles)
+  alpha_hat  <- matrix(NA_real_, N, K)
+  alpha_hat_index <- rep(NA_integer_, N)
+
+  for (i in seq_len(N)) {
+
+    answered_idx <- which(!is.na(responses[i, ]))
+
+    # Nenhuma resposta
+    if (length(answered_idx) == 0) {
+      posterior[i, ] <- prior
+      alpha_hat_index[i] <- which.max(prior)
+
+      if (method %in% c("MLE", "MAP")) {
+        alpha_hat[i, ] <- skill_patterns[alpha_hat_index[i], ]
+      } else {
+        alpha_hat[i, ] <- as.vector(prior %*% skill_patterns)
+      }
+      next
+    }
+
+    resp_obs <- matrix(responses[i, answered_idx], nrow = 1)
+    prob_obs <- prob_matrix[answered_idx, , drop = FALSE]
+
+    like_i <- get_likelihood(resp_obs, prob_obs)[1, ]
+    likelihood[i, ] <- like_i
+
+    post_i <- get_posterior(matrix(like_i, nrow = 1), prior)[1, ]
+    posterior[i, ] <- post_i
+
+    if (method == "MLE") {
+      alpha_hat_index[i] <- which.max(like_i)
+      alpha_hat[i, ] <- skill_patterns[alpha_hat_index[i], ]
+    } else if (method == "MAP") {
+      alpha_hat_index[i] <- which.max(post_i)
+      alpha_hat[i, ] <- skill_patterns[alpha_hat_index[i], ]
+    } else {
+      alpha_hat_index[i] <- which.max(post_i)
+      alpha_hat[i, ] <- as.vector(post_i %*% skill_patterns)
+    }
   }
-  
+
+  colnames(alpha_hat) <- colnames(Q)
+
+  list(
+    alpha_hat        = alpha_hat,
+    alpha_hat_index  = alpha_hat_index,
+    likelihood       = likelihood,
+    posterior        = posterior,
+    prob_matrix      = prob_matrix
+  )
 }
 
-#  If response variability method = 'ML' else 'EAP'
-customUpdateThetas <- function(design, person, test){
+customUpdateSkills <- function(design, person, test){
+
     
-    # from global environment:
+    # Globais esperadas
     model <- model
     q_matrix <- q_matrix
     parameters <- cdm_parameters
+    prior <- NULL
 
-    # from person:
-    # param_ID = extract.mirtCAT(person, "ID")
-    # param_raw_responses = extract.mirtCAT(person, "raw_responses")
-    responses = extract.mirtCAT(person, "responses")
-    # param_items_answered = extract.mirtCAT(person, "items_answered")
-    # param_items_in_bank = extract.mirtCAT(person, "items_in_bank")
-    # param_thetas = extract.mirtCAT(person, "thetas")
-    # param_thetas_history = extract.mirtCAT(person, "thetas_history")
-    # param_thetas_SE = extract.mirtCAT(person, "thetas_SE")
-    # param_thetas_SE_history = extract.mirtCAT(person, "thetas_SE_history")
-    # param_item_time = extract.mirtCAT(person, "item_time")
-    # param_demographics = extract.mirtCAT(person, "demographics")
-    # param_clientData = extract.mirtCAT(person, "clientData")
-
-    # from design:
-    # param_items_not_scored = extract.mirtCAT(design, "items_not_scored")
-    param_min_items = extract.mirtCAT(design, "min_items")
-    # param_max_items = extract.mirtCAT(design, "max_items")
-    # param_exposure = extract.mirtCAT(design, "exposure")
-    # param_content = extract.mirtCAT(design, "content")
-    # param_max_time = extract.mirtCAT(design, "max_time")
-    # param_met_SEM = extract.mirtCAT(design, "met_SEM")
-    # param_met_delta_theta = extract.mirtCAT(design, "met_delta_theta")
-    # param_met_classify = extract.mirtCAT(design, "met_classify")
-    # param_test_properties = extract.mirtCAT(design, "test_properties")
-    # param_person_properties = extract.mirtCAT(design, "person_properties")
-
-    # from test:
-    #mo <- extract.mirtCAT(test, 'mo')
+    # Respostas do respondente (0/1/NA)
+    responses <- extract.mirtCAT(person, "responses")
+    
+    # Método de estimação (MLE / MAP / EAP)
     method <- design@method
 
-    # cat("Estimating", model, "using", method, "method ")
+    K <- ncol(q_matrix)
 
-    itens_non_answered <- which(is.na(responses))
-    n_itens <- length(responses)
-    n_itens_non_answered <- length(itens_non_answered)
-    n_itens_answered <- n_itens - n_itens_non_answered
+    theta_colnames <- paste0("F", 1:K)
+    theta_se_colnames <- paste0("F", 1:K, "_SE")
 
-    responses_temp <- responses[-itens_non_answered]
-    parameters_temp <- parameters[-itens_non_answered]
-    q_matrix_temp <- q_matrix[-itens_non_answered,]
+    # -----------------------------
+    # Estima habilidades
+    # -----------------------------
+    est <- estimate_alpha(
+        responses = matrix(responses, nrow = 1),
+        Q = q_matrix,
+        parameters = parameters,
+        model = model,
+        method = method,
+        prior = prior
+    )
+
+    theta_hat <- est$alpha_hat[1, , drop = FALSE]
+
+    theta_SE <- matrix(
+        NA_real_,
+        nrow = 1,
+        ncol = K,
+        dimnames = list(NULL, theta_se_colnames)
+    )
+
+    # -----------------------------
+    # Atualiza no mirtCAT
+    # -----------------------------
+    person$Update_thetas(
+        theta    = theta_hat,
+        theta_SE = theta_SE
+    )
+
+    person$clientData$est <- est
     
-    theta_colnames <- paste0("F", 1:ncol(q_matrix))
-    theta_se_colnames <- paste0("F", 1:ncol(q_matrix), "_SE")
 
-
-    # pelo menos 1 item respondido
-    if(n_itens_answered < param_min_items){
-        start_skill <- 0
-        start_skill_SE <- 1
-        person$Update_thetas(theta=rep(start_skill,ncol(q_matrix)), theta_SE=rep(start_skill_SE,ncol(q_matrix)))
-        # print("skipped")
-        
-    # mais de 1 item respondido
-    }else if(n_itens_answered < n_itens){
-      # tmp <- dina_estimate(parameters_temp, responses_temp, q_matrix_temp, est = "MAP")
-      tmp <- estimateSkills(responses_temp, q_matrix_temp, parameters_temp, model = model, method = method)
-      person$Update_thetas(theta=tmp[,theta_colnames], theta_SE=tmp[,theta_se_colnames, drop=FALSE])
-
-    # todos os itens respondidos
-    }else if(n_itens_answered == n_itens){
-      # tmp <- dina_estimate(parameters, responses, q_matrix, est = "MAP")
-      tmp <- estimateSkills(responses, q_matrix, parameters, model = model, method = method)
-      person$Update_thetas(theta=tmp[,theta_colnames], theta_SE=tmp[,theta_se_colnames, drop=FALSE])
-    }
-
-    # cat(" | Updated thetas:", person$thetas, "\n")
     invisible()
 }
 
+# --- Item selection criteria functions ---
 KL_criteria <- function(item_index, alpha_hat_index, prob_matrix) {
   # prob_matrix: matriz J x n_profiles com P(X = 1 | alpha)
   n_profiles <- ncol(prob_matrix)
   p_hat <- prob_matrix[item_index, alpha_hat_index]
+  
   nz <- 1e-10
   
   kl_sum <- 0
@@ -360,109 +401,257 @@ SHE_criteria <- function(item_index, prob_matrix, posterior) {
 }
 
 select_next_item <- function(
+  person,
   responses,
+  administered,
   Q,
   parameters,
+  prior = NULL,
   model = "DINA",
-  criteria = "seq",  # "KL", "PWKL", "MPWKL", "SHE"
-  method = "MAP",
-  prior = NULL
+  criterion,
+  estimation_method = c("MAP"),
+  use_constraints = FALSE
 ) {
-  
-  answered <- !is.na(responses)
-  candidate_items <- which(!answered)
-  
-  # Selection of the criterion
-  if (criteria == "seq") {
-    selected <- candidate_items[1]
-    return(selected)
-  } else if (criteria == "random") {
-    selected <- sample(candidate_items, 1)
-    if(length(candidate_items) == 1) selected <- candidate_items
-    return(selected)
-  } 
-  
-  
-  K <- ncol(Q)
-  skill_patterns <- as.matrix(expand.grid(replicate(K, 0:1, simplify = FALSE)))
-  n_profiles <- nrow(skill_patterns)
 
-  if (is.null(prior)) prior <- rep(1 / n_profiles, n_profiles)
-  
-  prob_matrix <- get_prob_matrix(Q, parameters, skill_patterns, model)
+  estimation_method <- match.arg(estimation_method)
 
-  observed_responses <- matrix(ifelse(is.na(responses), 0, responses), nrow = 1)
-  likelihood <- get_likelihood(observed_responses, prob_matrix)
-  posterior <- get_posterior(likelihood, prior)[1, ]
- 
-  if(method %in% c("EAP", "MAP")){
-    alpha_hat_index <- which.max(posterior) # MAP
-  } else {
-    alpha_hat_index <- which.max(likelihood[1, ])
-  }
-  
+  if (!is.character(criterion) || length(criterion) != 1)
+    stop("criterion must be a single character string.")
 
-  if (criteria == "KL") {
-    scores <- sapply(candidate_items, function(j) KL_criteria(j, alpha_hat_index, prob_matrix))
-    selected <- candidate_items[which.max(scores)]
+  if (any(!is.na(responses) & !responses %in% c(0, 1)))
+    stop("Responses must be coded as 0/1/NA.")
 
-  } else if (criteria == "PWKL") {
-    scores <- sapply(candidate_items, function(j) PWKL_criteria(j, alpha_hat_index, prob_matrix, posterior))
-    selected <- candidate_items[which.max(scores)]
-
-  } else if (criteria == "MPWKL") {
-    scores <- sapply(candidate_items, function(j) MPWKL_criteria(j, prob_matrix, posterior))
-    selected <- candidate_items[which.max(scores)]
-
-  } else if (criteria == "SHE") {
-    scores <- sapply(candidate_items, function(j) SHE_criteria(j, prob_matrix, posterior))
-    selected <- candidate_items[which.min(scores)]
-
-  } else {
-    stop("Unknown criteria. Use: 'seq', 'random', 'KL', 'PWKL', 'MPWKL' or 'SHE'.")
+  if (sum(administered) == 0 && criterion %in% c("KL", "PWKL", "SHE")) {
+    warning(
+      "Criterion '", criterion,
+      "' used with no responses. Posterior equals prior."
+    )
   }
 
-  return(selected)
+  if (is.null(person$clientData$est)) {
+    est <- estimate_alpha(
+      responses = matrix(responses, nrow = 1),
+      Q = Q,
+      parameters = parameters,
+      model = model,
+      method = estimation_method,
+      prior = prior
+    )
+  } else {
+    est <- person$clientData$est
+  }
+
+  posterior <- est$posterior[1, ]
+  alpha_hat_index <- est$alpha_hat_index[1]
+  prob_matrix <- est$prob_matrix
+
+  candidate_items <- if (use_constraints) {
+    seq_len(nrow(Q))
+  } else {
+    which(!administered)
+  }
+
+  if (length(candidate_items) == 0)
+    stop("No candidate items available.")
+
+  if (criterion == "seq") {
+    return(list(item = candidate_items[1], scores = NULL))
+  }
+
+  if (criterion == "random") {
+    return(list(item = sample(candidate_items, 1), scores = NULL))
+  }
+
+  scores <- sapply(candidate_items, function(j) {
+    switch(
+      criterion,
+      KL    = KL_criteria(j, alpha_hat_index, prob_matrix),
+      PWKL  = PWKL_criteria(j, alpha_hat_index, prob_matrix, posterior),
+      MPWKL = MPWKL_criteria(j, prob_matrix, posterior),
+      SHE   = -SHE_criteria(j, prob_matrix, posterior),
+      stop("Invalid criterion.")
+    )
+  })
+
+  list(
+    item = candidate_items[which.max(scores)],
+    scores = scores,
+    candidate_items = candidate_items
+  )
 }
 
-# revisar funcao e remover parametros nao usados
-customNextItemCDM <- function(person, design, test, model, q_matrix, parameters, criteria) {
+customNextItemCDM <- function(
+  person,
+  design,
+  test,
+  model,
+  q_matrix,
+  parameters,
+  criteria,
+  prior,
+  start_item
+) {
+  cat('Selecting next item\n')
 
-  # # from global environment:
-  # model <- model
-  # q_matrix <- q_matrix
-  # parameters <- cdm_parameters
-  
-  # from design:
-  start_item <- ifelse(is.null(is.numeric(design@start_item)), design@start_item, as.numeric(design@start_item))
-  
-  method <- design@method
-  
-  # Dados do teste
-  responses <- extract.mirtCAT(person, 'raw_responses')
-  responses <- as.integer(responses)
-  responses[responses == 1] <- 0
-  responses[responses == 2] <- 1
+  # --------------------------------------------------
+  # Respostas do respondente (0/1/NA)
+  # --------------------------------------------------
+  responses <- extract.mirtCAT(person, "responses")
+  # person$clientData$posterior <- 'Oi thithi'#est$posterior[1, ]
+  # print(person$clientData$posterior)
 
-  is_first_item <- all(is.na(responses))
-  
-  if(is_first_item && is.character(start_item)) {
-    criteria <- start_item
-  }else if(is_first_item && start_item == 1) {
-    best_item <- 1
-    return(best_item)
-  }else if(is_first_item && start_item != 1 && criteria == "seq") {
-    stop("start_item must equal 1 with seq criteria")
+  # Sanity check
+  if (any(!is.na(responses) & !responses %in% c(0, 1))) {
+    stop("Responses must be coded as 0/1/NA for CDM.")
   }
-  
-  best_item <- select_next_item(
-    response = responses, 
-    Q=q_matrix, 
-    parameters = parameters, 
-    model = model, 
-    criteria = criteria, 
-    method = method
+
+  administered <- !is.na(responses)
+
+  # --------------------------------------------------
+  # Verifica uso de restrições (mesma lógica antiga)
+  # --------------------------------------------------
+  constr_fun <- design@constr_fun
+  use_constraints <- length(body(constr_fun)) > 1
+
+  # --------------------------------------------------
+  # Caso especial: primeiro item
+  # --------------------------------------------------
+  if (all(!administered) && !is.null(start_item) && !is.na(start_item)) {
+
+    # 1) start_item numérico → item fixo
+    if (is.numeric(start_item)) {
+
+      item <- as.integer(start_item)
+
+      if (length(item) != 1)
+        stop("start_item numeric must be a single item index.")
+
+      if (item < 1 || item > length(responses))
+        stop("start_item numeric is out of item range.")
+
+      return(item)
+    }
+
+    # 2) start_item como string → critério especial
+    effective_criterion <- as.character(start_item)
+
+  } else {
+    # Critério padrão do CAT
+    effective_criterion <- criteria
+  }
+
+  # --------------------------------------------------
+  # Seleção do próximo item (CD-CAT)
+  # --------------------------------------------------
+  sel <- select_next_item(
+    person            = person,
+    responses         = responses,
+    administered      = administered,
+    Q                 = q_matrix,
+    parameters        = parameters,
+    prior             = prior,
+    model             = model,
+    criterion         = effective_criterion,
+    estimation_method = design@method,
+    use_constraints   = use_constraints   # 🔑 CRÍTICO
   )
-  
+
+  # --------------------------------------------------
+  # Sem restrições → seleção direta
+  # --------------------------------------------------
+  if (!use_constraints) {
+    return(sel$item)
+  }
+
+  # --------------------------------------------------
+  # Com restrições → otimização via mirtCAT
+  # --------------------------------------------------
+  if (is.null(sel$scores)) {
+    stop("Scores must be provided when constraints are active.")
+  }
+
+  names(sel$scores) <- sel$candidate_items
+
+  best_item <- findNextItem(
+    person    = person,
+    design    = design,
+    test      = test,
+    objective = sel$scores
+  )
+
   return(best_item)
 }
+
+# --- Termination functions ---
+stop_cdcat <- function(
+  person,
+  administered,
+  min_items,
+  threshold
+) {
+
+  n_administered <- sum(administered)
+  if (n_administered < min_items) {
+    return(FALSE)
+  }
+
+  # -----------------------------
+  # Usa posterior já estimada
+  # -----------------------------
+  est <- person$clientData$est
+  if (is.null(est) || is.null(est$posterior)) {
+    stop("Posterior not found in person$clientData$est.")
+  }
+
+  posterior <- est$posterior[1, ]
+
+  ord <- sort(posterior, decreasing = TRUE)
+  cat("Posterior top probabilities:", ord[1:2], "\n")
+
+  # -----------------------------
+  # Regras de parada
+  # -----------------------------
+  if (length(threshold) == 1) {
+    # Max posterior rule
+    return(ord[1] >= threshold[1])
+
+  } else if (length(threshold) == 2) {
+    # Dual rule
+    return(
+      ord[1] >= threshold[1] &&
+      ord[2] <= threshold[2]
+    )
+
+  } else {
+    stop("threshold must be length 1 (max) or 2 (dual)")
+  }
+}
+
+customStopCDM <- function(person, design, test) {
+
+  # Globais esperadas
+  threshold <- threshold
+
+  # -----------------------------
+  # Itens administrados
+  # -----------------------------
+  responses <- extract.mirtCAT(person, "responses")
+  administered <- !is.na(responses)
+
+  # -----------------------------
+  # Parâmetros do desenho
+  # -----------------------------
+  min_items <- extract.mirtCAT(design, "min_items")
+
+  # -----------------------------
+  # Decisão de parada
+  # -----------------------------
+  stop_cdcat(
+    person       = person,
+    administered = administered,
+    min_items    = min_items,
+    threshold    = threshold
+  )
+}
+
+

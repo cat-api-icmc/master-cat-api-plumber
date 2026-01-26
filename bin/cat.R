@@ -15,9 +15,31 @@ build_irt_parameters <- function(
   return(df)
 }
 
+build_constr_fun <- function(constr_fun){
+  if(is.null(constr_fun)){
+    constr_fun <- function(){}
+  }else{
+    constr_fun <- eval(parse(text = constr_fun))
+  }
+  return(constr_fun)
+}
+
+
 customNextItemIRT <- function(design, person, test, criteria){
-  best_item <- findNextItem(person=person, design=design, test=test, criteria=criteria)
-  best_item
+  constr_fun <- design@constr_fun
+  
+  if(length(body(constr_fun)) == 1){
+    best_item <- findNextItem(person=person, design=design, test=test, criteria=criteria)
+
+  }else{
+    # Compute objective for optimizer 
+    obj <- computeCriteria(person=person, design=design, test=test, criteria=criteria)
+
+    best_item <- findNextItem(person=person, design=design, test=test, objective=obj)
+    
+  }
+
+  return(best_item)
 }
 
 create_mirt_object <- function(
