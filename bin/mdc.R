@@ -323,7 +323,7 @@ KL_criteria <- function(item_index, alpha_hat_index, prob_matrix) {
   nz <- 1e-10
   
   kl_sum <- 0
-  for (c in 1:n_profiles) {
+  for (c in 1:n_profiles) { # REMOVER COMPARACAO DO PERFIL ATUAL SENDO O MESMO ESTIMADO
     p_c <- prob_matrix[item_index, c]
     
     kl <- p_hat * log((p_hat + nz) / (p_c + nz)) + 
@@ -341,7 +341,7 @@ PWKL_criteria <- function(item_index, alpha_hat_index, prob_matrix, posterior) {
   nz <- 1e-10
   
   pwkl_sum <- 0
-  for (c in 1:n_profiles) {
+  for (c in 1:n_profiles) { # REMOVER COMPARACAO DO PERFIL ATUAL SENDO O MESMO ESTIMADO
     p_c <- prob_matrix[item_index, c]
     post_c <- posterior[c]
     
@@ -359,7 +359,7 @@ MPWKL_criteria <- function(item_index, prob_matrix, posterior) {
   mpwkl <- 0
   
   for (d in 1:n_profiles) {
-    for (c in 1:n_profiles) {
+    for (c in 1:n_profiles) { # REMOVER COMPARACAO DO PERFIL ATUAL SENDO O MESMO ESTIMADO
       p_d <- p[d]
       p_c <- p[c]
       

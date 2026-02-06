@@ -38,7 +38,7 @@ function(req, res) {
     criteria <- config$criteria
 
     thetas_start <- config$thetas_start
-    pattern_theta <- config$pattern_theta
+    # pattern_theta <- config$pattern_theta
 
     # Shadow CAT and Constraints 
     constr_fun <- build_constr_fun(config$constr_fun)
@@ -60,7 +60,7 @@ function(req, res) {
         , paste("Start Item:", start_item, "\n")
         , paste("Criteria:", criteria, "\n")
         , paste("Thetas Start:", toString(thetas_start), "\n")
-        , paste("Pattern Theta:", toString(pattern_theta), "\n")
+        # , paste("Pattern Theta:", toString(pattern_theta), "\n")
         , paste("Design - min_sem:", toString(min_sem), "\n")
         , paste("Design - delta_thetas:", toString(delta_thetas), "\n")
         , paste("Design - min_items:", min_items, "\n")
@@ -106,7 +106,7 @@ function(req, res) {
     
     cat_design <- create_cat_design(
       mo,
-      pattern_theta = pattern_theta,
+      # pattern_theta = pattern_theta,
       start_item = start_item,
       criteria = criteria,
       method = "EAP", # default method
@@ -188,13 +188,14 @@ function(req, res) {
     criteria <- config$criteria
     start_item <- config$start_item
     thetas_start <- config$thetas_start
-    pattern_theta <- config$pattern_theta
+    # pattern_theta <- config$pattern_theta
     method <- config$method
 
     # Shadow CAT and Constraints 
     constr_fun <- build_constr_fun(config$constr_fun)
     
     # critérios de parada
+    # threshold <- config$threshold
     threshold <<- c(0.7, 0.1) #config$threshold # c(0.7, 0.1)
     # threshold:
     # length 1 -> max posterior
@@ -207,6 +208,7 @@ function(req, res) {
       config$max_time,
       Inf
     )
+    print(packageVersion("mirtCAT"))
 
     # print all request parameters for debugging
     cat("Starting CMD assessment with parameters:\n"
@@ -214,7 +216,7 @@ function(req, res) {
         , paste("Start Item:", start_item, "\n")
         , paste("Criteria:", criteria, "\n")
         , paste("Thetas Start:", toString(thetas_start), "\n")
-        , paste("Pattern Theta:", toString(pattern_theta), "\n")
+        # , paste("Pattern Theta:", toString(pattern_theta), "\n")
         , paste("Design - threshold:", toString(threshold), "\n")
         , paste("Design - min_items:", min_items, "\n")
         , paste("Design - max_items:", max_items, "\n")
@@ -269,7 +271,7 @@ function(req, res) {
     # ===============================
     cat_design <- create_cat_design(
       mo,
-      pattern_theta = rep(0, n_skills),
+      # pattern_theta = rep(0, n_skills),
       method = method,
       # start_item = start_item,
       design = design

@@ -78,19 +78,19 @@ create_cat_design <- function(
     method = "MAP",
     criteria = "seq",
     start_item = 1,
-    pattern_theta,
-    pattern_dataframe = NULL,
+    # pattern_theta,
+    # pattern_dataframe = NULL,
     design = design,
     ...) {
-  pattern <- generate_pattern(
-    mirt_object,
-    theta = pattern_theta, dataframe = pattern_dataframe
-  )
+  # pattern <- generate_pattern(
+  #   mirt_object,
+  #   theta = pattern_theta, dataframe = pattern_dataframe
+  # )
 
   cat_design <- mirtCAT(
     mo = mirt_object,
     dataframe = dataframe,
-    local_pattern = pattern,
+    # local_pattern = pattern,
     start_item = start_item,
     criteria = criteria,
     design_elements = TRUE,
