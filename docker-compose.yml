@@ -29,7 +29,7 @@ services:
   #   networks:
   #     - cat-api
 
-# networks:
-#   cat-api:
-#     external: true
-#     name: cat-api
+networks:
+  cat-api:
+    external: true
+    name: cat-api
