@@ -400,6 +400,167 @@ SHE_criteria <- function(item_index, prob_matrix, posterior) {
   return(expected_entropy)
 }
 
+apply_content_balancing <- function(
+  candidate_items,
+  administered,
+  content,
+  content_prop
+) {
+
+  # --------------------------------------------------
+  # Se não houver balanceamento, retorna candidatos
+  # --------------------------------------------------
+  if (is.null(content) || is.null(content_prop)) {
+    return(candidate_items)
+  }
+
+  # --------------------------------------------------
+  # Itens já administrados
+  # --------------------------------------------------
+  answered_items <- which(administered)
+
+  # --------------------------------------------------
+  # Caso inicial: nenhum item aplicado ainda
+  # --------------------------------------------------
+  if (length(answered_items) == 0) {
+    return(candidate_items)
+  }
+
+  # --------------------------------------------------
+  # Proporção observada por conteúdo
+  # --------------------------------------------------
+  observed_prop <- table(content[answered_items]) / length(answered_items)
+
+  # alinhar com o blueprint
+  observed_prop <- observed_prop[names(content_prop)]
+  observed_prop[is.na(observed_prop)] <- 0
+
+  # --------------------------------------------------
+  # Gap (Kingsbury & Zara, 1991)
+  # --------------------------------------------------
+  gap <- content_prop - observed_prop
+
+  # domínio mais deficitário
+  target_content <- names(which.max(gap))
+
+  # --------------------------------------------------
+  # Filtrar itens candidatos
+  # --------------------------------------------------
+  filtered_items <- candidate_items[
+    content[candidate_items] == target_content
+  ]
+
+  # fallback de segurança
+  if (length(filtered_items) == 0) {
+    return(candidate_items)
+  }
+
+  filtered_items
+}
+
+apply_randomesque <- function(scores, n) {
+
+  if (n <= 1) {
+    return(which.max(scores))
+  }
+
+  n <- min(n, length(scores))
+
+  ord <- order(scores, decreasing = TRUE)
+  top_n <- ord[seq_len(n)]
+
+  sample(top_n, 1)
+}
+
+apply_sympson_hetter <- function(scores, p) {
+
+  df <- data.frame(
+    item   = seq_along(scores),
+    scores = scores,
+    p      = p
+  )
+  df <- df[order(df$scores, decreasing = TRUE), ]
+
+  for (r in seq_len(nrow(df))) {
+
+    if (runif(1) <= df$p[r]) {
+      return(df$item[r])
+    }
+    # rejeitado → continua tentando
+  }
+
+  stop("Ran out of items to administer.")
+}
+
+apply_exposure_control <- function(
+  scores,
+  exposure,
+  administered
+) {
+
+  # fallback: sem controle
+  if (is.null(exposure)) {
+    return(which.max(scores))
+  }
+
+  # -----------------------------
+  # Regime 1: Sympson–Hetter
+  # todos em [0,1]
+  # -----------------------------
+  if (all(exposure >= 0 & exposure <= 1)) {
+
+    return(
+      apply_sympson_hetter(
+        scores = scores,
+        p      = exposure
+      )
+    )
+  }
+
+  # -----------------------------
+  # Regime 2: Randomesque
+  # todos >= 1
+  # -----------------------------
+  if (all(exposure >= 1)) {
+
+    k <- sum(administered) + 1
+
+    if (k > length(exposure) || is.na(exposure[k])) {
+      return(which.max(scores))
+    }
+
+    return(
+      apply_randomesque(
+        scores = scores,
+        n      = exposure[k]
+      )
+    )
+  }
+
+  # -----------------------------
+  # Caso inválido
+  # -----------------------------
+  stop("Invalid exposure vector: must be all in [0,1] or all >= 1.")
+}
+
+apply_shadow_cat <- function(
+  person,
+  design,
+  test,
+  scores,
+  candidate_items
+) {
+
+  names(scores) <- candidate_items
+
+  findNextItem(
+    person    = person,
+    design    = design,
+    test      = test,
+    objective = scores
+  )
+}
+
 select_next_item <- function(
   person,
   responses,
@@ -410,7 +571,10 @@ select_next_item <- function(
   model = "DINA",
   criterion,
   estimation_method = c("MAP"),
-  use_constraints = FALSE
+  use_constraints = FALSE,
+  content = NULL,
+  content_prop = NULL,
+  exposure = NULL
 ) {
 
   estimation_method <- match.arg(estimation_method)
@@ -428,6 +592,9 @@ select_next_item <- function(
     )
   }
 
+  # --------------------------------------------------
+  # Estimação do perfil latente (alpha)
+  # --------------------------------------------------
   if (is.null(person$clientData$est)) {
     est <- estimate_alpha(
       responses = matrix(responses, nrow = 1),
@@ -445,6 +612,9 @@ select_next_item <- function(
   alpha_hat_index <- est$alpha_hat_index[1]
   prob_matrix <- est$prob_matrix
 
+  # --------------------------------------------------
+  # Itens candidatos
+  # --------------------------------------------------
   candidate_items <- if (use_constraints) {
     seq_len(nrow(Q))
   } else {
@@ -454,6 +624,22 @@ select_next_item <- function(
   if (length(candidate_items) == 0)
     stop("No candidate items available.")
 
+  # --------------------------------------------------
+  # Balanceamento de conteúdo (Kingsbury & Zara)
+  # --------------------------------------------------
+  candidate_items <- apply_content_balancing(
+    candidate_items = candidate_items,
+    administered    = administered,
+    content         = content,
+    content_prop    = content_prop
+  )
+
+  if (length(candidate_items) == 0)
+    stop("No candidate items available after content balancing.")
+
+  # --------------------------------------------------
+  # Critérios triviais
+  # --------------------------------------------------
   if (criterion == "seq") {
     return(list(item = candidate_items[1], scores = NULL))
   }
@@ -462,6 +648,9 @@ select_next_item <- function(
     return(list(item = sample(candidate_items, 1), scores = NULL))
   }
 
+  # --------------------------------------------------
+  # Cálculo dos critérios MDC
+  # --------------------------------------------------
   scores <- sapply(candidate_items, function(j) {
     switch(
       criterion,
@@ -473,9 +662,22 @@ select_next_item <- function(
     )
   })
 
-  list(
-    item = candidate_items[which.max(scores)],
+  # --------------------------------------------------
+  # Controle de exposição
+  # --------------------------------------------------
+  if (!is.null(exposure) && length(exposure) < max(candidate_items)) {
+    stop("Exposure vector must be defined for all items.")
+  }
+
+  selected_index <- apply_exposure_control(
     scores = scores,
+    exposure = if (!is.null(exposure)) exposure[candidate_items] else NULL,
+    administered = administered
+  )
+
+  list(
+    item            = candidate_items[selected_index],
+    scores          = scores,
     candidate_items = candidate_items
   )
 }
@@ -491,16 +693,14 @@ customNextItemCDM <- function(
   prior,
   start_item
 ) {
-  cat('Selecting next item\n')
+
+  cat("Selecting next item\n")
 
   # --------------------------------------------------
-  # Respostas do respondente (0/1/NA)
+  # Respostas do respondente
   # --------------------------------------------------
   responses <- extract.mirtCAT(person, "responses")
-  # person$clientData$posterior <- 'Oi thithi'#est$posterior[1, ]
-  # print(person$clientData$posterior)
 
-  # Sanity check
   if (any(!is.na(responses) & !responses %in% c(0, 1))) {
     stop("Responses must be coded as 0/1/NA for CDM.")
   }
@@ -508,17 +708,27 @@ customNextItemCDM <- function(
   administered <- !is.na(responses)
 
   # --------------------------------------------------
-  # Verifica uso de restrições (mesma lógica antiga)
+  # Verificação de restrições
   # --------------------------------------------------
   constr_fun <- design@constr_fun
   use_constraints <- length(body(constr_fun)) > 1
+
+  # --------------------------------------------------
+  # Balanceamento de conteúdo
+  # --------------------------------------------------
+  content      <- design@content
+  content_prop <- design@content_prop
+
+  # --------------------------------------------------
+  # Controlo de exposição
+  # --------------------------------------------------
+  exposure <- design@exposure
 
   # --------------------------------------------------
   # Caso especial: primeiro item
   # --------------------------------------------------
   if (all(!administered) && !is.null(start_item) && !is.na(start_item)) {
 
-    # 1) start_item numérico → item fixo
     if (is.numeric(start_item)) {
 
       item <- as.integer(start_item)
@@ -532,11 +742,9 @@ customNextItemCDM <- function(
       return(item)
     }
 
-    # 2) start_item como string → critério especial
     effective_criterion <- as.character(start_item)
 
   } else {
-    # Critério padrão do CAT
     effective_criterion <- criteria
   }
 
@@ -553,34 +761,37 @@ customNextItemCDM <- function(
     model             = model,
     criterion         = effective_criterion,
     estimation_method = design@method,
-    use_constraints   = use_constraints   # 🔑 CRÍTICO
+    use_constraints   = use_constraints,
+    content           = content,
+    content_prop      = content_prop,
+    exposure          = exposure
   )
 
   # --------------------------------------------------
-  # Sem restrições → seleção direta
+  # Sem restrições
   # --------------------------------------------------
   if (!use_constraints) {
     return(sel$item)
   }
 
   # --------------------------------------------------
-  # Com restrições → otimização via mirtCAT
+  # Com restrições (shadow testing / LP)
   # --------------------------------------------------
   if (is.null(sel$scores)) {
     stop("Scores must be provided when constraints are active.")
   }
 
-  names(sel$scores) <- sel$candidate_items
-
-  best_item <- findNextItem(
-    person    = person,
-    design    = design,
-    test      = test,
-    objective = sel$scores
+  return(
+    apply_shadow_cat(
+      person          = person,
+      design          = design,
+      test            = test,
+      scores          = sel$scores,
+      candidate_items = sel$candidate_items
+    )
   )
-
-  return(best_item)
 }
+
 
 # --- Termination functions ---
 stop_cdcat <- function(
@@ -653,5 +864,3 @@ customStopCDM <- function(person, design, test) {
     threshold    = threshold
   )
 }
-
-

@@ -28,7 +28,7 @@ function(req, res) {
   tryCatch({
 
     # ===============================
-    # 🔹 INPUT PARSING
+    #    INPUT PARSING
     # ===============================
     questions <- req$body$questions
     config <- req$body$config
@@ -40,8 +40,36 @@ function(req, res) {
     thetas_start <- config$thetas_start
     # pattern_theta <- config$pattern_theta
 
-    # Shadow CAT and Constraints 
+    ## content balancing
+    if(is.null(config$content_balancing)){
+      content <- NULL
+      content_prop <- NULL
+      cat("No content constraints provided, skipping content configuration.\n")
+    }else{
+      # character vector indicating the type of content measured by an item
+      content <- unlist(config$content_balancing$content)
+      # named numeric vector indicating the distribution of item content proportions
+      content_prop <- unlist(config$content_balancing$content_prop)  
+      cat("Content constraints provided, balancing content distribution.\n")
+    }
+
+    ## exposure control
+    if(is.null(config$exposure)){
+      exposure <- NULL
+      cat("No exposure constraints provided, skipping exposure configuration.\n")
+    }else{
+      exposure <- unlist(config$exposure)
+      cat("Exposure constraints provided, applying exposure control.\n")
+    }
+
+    # Shadow CAT
+    if(is.null(config$constr_fun)){
+      cat("No custom constraints function provided, skipping constraint configuration.\n")
+    }else{
+      cat("Shadow CAT function provided, applying custom constraints.\n")
+    }
     constr_fun <- build_constr_fun(config$constr_fun)
+    
 
     # stopping criteria
     min_sem <- config$min_sem #config$design$min_sem
@@ -76,6 +104,9 @@ function(req, res) {
       min_items = min_items,
       max_items = max_items,
       max_time = max_time,
+      content = content,
+      content_prop = content_prop, 
+      exposure = exposure,
       constr_fun = constr_fun
       # customNextItem = customNextItemIRT # flexibilixa o uso de critérios customizados
     )
@@ -171,7 +202,7 @@ function(req, res) {
   tryCatch({
 
     # ===============================
-    # 🔹 PARSING DA REQUISIÇÃO
+    #    INPUT PARSING
     # ===============================
     questions <- req$body$questions
     config <- req$body$config
@@ -191,15 +222,42 @@ function(req, res) {
     # pattern_theta <- config$pattern_theta
     method <- config$method
 
-    # Shadow CAT and Constraints 
-    constr_fun <- build_constr_fun(config$constr_fun)
-    
     # critérios de parada
     # threshold <- config$threshold
     threshold <<- c(0.7, 0.1) #config$threshold # c(0.7, 0.1)
     # threshold:
     # length 1 -> max posterior
     # length 2 -> dual rule
+
+    ## content balancing
+    if(is.null(config$content_balancing)){
+      content <- NULL
+      content_prop <- NULL
+      cat("No content constraints provided, skipping content configuration.\n")
+    }else{
+      # character vector indicating the type of content measured by an item
+      content <- unlist(config$content_balancing$content)
+      # named numeric vector indicating the distribution of item content proportions
+      content_prop <- unlist(config$content_balancing$content_prop)  
+      cat("Content constraints provided, balancing content distribution.\n")
+    }
+
+    ## exposure control
+    if(is.null(config$exposure)){
+      exposure <- NULL
+      cat("No exposure constraints provided, skipping exposure configuration.\n")
+    }else{
+      exposure <- unlist(config$exposure)
+      cat("Exposure constraints provided, applying exposure control.\n")
+    }
+
+    # Shadow CAT
+    if(is.null(config$constr_fun)){
+      cat("No custom constraints function provided, skipping constraint configuration.\n")
+    }else{
+      cat("Shadow CAT function provided, applying custom constraints.\n")
+    }
+    constr_fun <- build_constr_fun(config$constr_fun)
     
     min_items <- config$min_items #max(config$min_items, 2)
     max_items <- config$max_items
@@ -248,6 +306,9 @@ function(req, res) {
       min_items = min_items, # garante pelo menos 2 items
       max_items = max_items,
       max_time = max_time,
+      content = content,
+      content_prop = content_prop, 
+      exposure = exposure,
       constr_fun = constr_fun,
       customUpdateThetas = customUpdateSkills,
       customStop = customStopCDM,
@@ -273,6 +334,7 @@ function(req, res) {
       mo,
       # pattern_theta = rep(0, n_skills),
       method = method,
+      criteria = 'KL', # para CDM, fixar para validação inicial, depois usar o que vem da config
       # start_item = start_item,
       design = design
     )
