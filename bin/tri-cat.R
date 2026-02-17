@@ -48,7 +48,7 @@ IRT_ALL_MODELS <- unname(unlist(IRT_DOMAIN$models))
 IRT_ALL_CRITERIA <- unname(unlist(IRT_DOMAIN$criteria))
 
 build_irt_parameters <- function(
-  discrimination,
+  discrimination = NULL,
   difficulty,
   guessing = NULL,
   upper = NULL,
@@ -439,7 +439,7 @@ validate_irt_request <- function(p) {
   # -------------------------------------------------
   # 7️⃣ Upper parameter validation
   # -------------------------------------------------
-  upper <- params$irt_upper
+  upper <- params$irt_upper_asymptote
 
   if (base_model == "4PL") {
 
@@ -730,6 +730,7 @@ irt_start_assessment <- function(req, res) {
     # 1 PARSE
     # ===============================
     parsed <- parse_irt_request(req)
+    cat('upper: ', parsed$questions$params$irt_upper_asymptote, '\n')
 
     # ===============================
     # 2 VALIDATION
@@ -763,10 +764,12 @@ irt_start_assessment <- function(req, res) {
     # ===============================
     # 4 BUILD IRT PARAMETERS
     # ===============================
-    irt_params <- build_irt_parameters(
+    
+    irt_params <- build_irt_parameters( 
       discrimination = parsed$questions$params$irt_discrimination,
       difficulty = parsed$questions$params$irt_difficulty,
       guessing = parsed$questions$params$irt_guess,
+      upper = parsed$questions$params$irt_upper_asymptote,
       model_type = parsed$model
     )
 
