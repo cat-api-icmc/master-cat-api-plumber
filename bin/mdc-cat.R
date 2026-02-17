@@ -96,13 +96,10 @@ parse_cdm_request <- function(req) {
   # --------------------------------------------------
   # 1️⃣ Parse JSON bruto (evita simplificação automática)
   # --------------------------------------------------
-  if (is.null(req$postBody))
+  if (is.null(req$body))
     abort_bad_request("Request body is missing.")
 
-  body <- jsonlite::fromJSON(
-    req$postBody,
-    simplifyVector = FALSE
-  )
+  body <- req$body
 
   # --------------------------------------------------
   # 2️⃣ Required fields
@@ -362,7 +359,7 @@ validate_cdm_next_request <- function(p) {
 cdm_start_assessment <- function(req, res, verbose = FALSE, validate = TRUE) {
   
   tryCatch({
-    
+
     # ======================================
     # 1 PARSE
     # ======================================
@@ -381,7 +378,7 @@ cdm_start_assessment <- function(req, res, verbose = FALSE, validate = TRUE) {
     cdm_objects <- build_cdm_domain_objects(parsed)
     
     constr_fun <- build_constr_fun(parsed$constr_fun_string)
-    
+
     # --------------------------------------
     # CAT DESIGN (only allowed fields)
     # --------------------------------------
@@ -398,7 +395,7 @@ cdm_start_assessment <- function(req, res, verbose = FALSE, validate = TRUE) {
       customStop   = customStopCDM,
       customNextItem = customNextItemCDM
     )
-    
+
     # ======================================
     # 4 CREATE PLACEHOLDER MIRT OBJECT
     # ======================================
@@ -422,7 +419,7 @@ cdm_start_assessment <- function(req, res, verbose = FALSE, validate = TRUE) {
     
     cat_design$item_time_history <- list()
     cat_design$last_answer_time <- Sys.time()
-    
+
     # ======================================
     # 6 STORE CDM METADATA (SAFE PLACE)
     # ======================================

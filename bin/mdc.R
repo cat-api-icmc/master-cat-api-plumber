@@ -656,8 +656,6 @@ select_next_item <- function(
   exposure = NULL
 ) {
 
-  estimation_method <- match.arg(estimation_method)
-
   if (!is.character(criterion) || length(criterion) != 1)
     stop("criterion must be a single character string.")
 
