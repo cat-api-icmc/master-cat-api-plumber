@@ -1,41 +1,123 @@
 # --- CDM parameter building function ---
-build_cdm_parameters <- function(questions) {
+build_cdm_parameters <- function(questions, model) {
 
   if (is.null(questions$params))
     stop("questions$params is missing.")
 
-  slip  <- questions$params$cdm_slipping
-  guess <- questions$params$cdm_guessing
+  model <- toupper(model)
+
   cdm_qmatrix <- questions$params$cdm_qmatrix
 
-  if (is.null(slip) || is.null(guess))
-    stop("Slip and Guess parameters must be provided for CDM models.")
-
-  if (!is.list(cdm_qmatrix) || length(cdm_qmatrix) == 0)
+  if (is.null(cdm_qmatrix) || !is.list(cdm_qmatrix))
     stop("cdm_qmatrix must be a non-empty list.")
 
-  max_index <- max(sapply(cdm_qmatrix, max))
-  qmatrix <- matrix(0, nrow = length(cdm_qmatrix), ncol = max_index)
+  # --------------------------------------------------
+  # Build Q-matrix (robust flattening)
+  # --------------------------------------------------
 
-  for (i in seq_along(cdm_qmatrix)) {
-    if (any(cdm_qmatrix[[i]] <= 0))
-      stop("Q-matrix indices must be positive integers.")
-    qmatrix[i, cdm_qmatrix[[i]]] <- 1
-  }
-
-  if (length(slip) != nrow(qmatrix) || length(guess) != nrow(qmatrix))
-    stop("Slip and guess must have length equal to number of items.")
-
-  parameters <- lapply(seq_len(nrow(qmatrix)), function(i) {
-    list(slip = slip[[i]], guess = guess[[i]])
+  cdm_qmatrix <- lapply(cdm_qmatrix, function(x) {
+    as.numeric(unlist(x))
   })
 
-  list(
-    parameters = parameters,
-    qmatrix    = qmatrix,
-    n_skills   = max_index
+  if (length(cdm_qmatrix) == 0)
+    stop("cdm_qmatrix cannot be empty.")
+
+  max_index <- max(unlist(cdm_qmatrix))
+
+  qmatrix <- matrix(
+    0,
+    nrow = length(cdm_qmatrix),
+    ncol = max_index
   )
+
+  for (i in seq_along(cdm_qmatrix)) {
+
+    indices <- cdm_qmatrix[[i]]
+
+    if (length(indices) == 0)
+      stop(paste("Item", i, "has empty Q specification."))
+
+    if (any(indices <= 0))
+      stop("Q-matrix indices must be positive integers.")
+
+    qmatrix[i, indices] <- 1
+  }
+
+  # 🔥 AGORA SIM:
+  J <- nrow(qmatrix)
+  K <- ncol(qmatrix)
+
+  # ==================================================
+  # DINA / DINO
+  # ==================================================
+  if (model %in% c("DINA", "DINO")) {
+
+    slip  <- questions$params$cdm_slipping
+    guess <- questions$params$cdm_guessing
+
+    if (is.null(slip) || is.null(guess))
+      stop("Slip and Guess parameters must be provided for DINA/DINO models.")
+
+    if (length(slip) != J || length(guess) != J)
+      stop("Slip and guess must have length equal to number of items.")
+
+    parameters <- lapply(seq_len(J), function(i) {
+      list(
+        slip  = as.numeric(slip[[i]]),
+        guess = as.numeric(guess[[i]])
+      )
+    })
+
+    return(list(
+      parameters = parameters,
+      qmatrix    = qmatrix,
+      n_skills   = K
+    ))
+  }
+
+  # ==================================================
+  # GDINA
+  # ==================================================
+  if (model == "GDINA") {
+
+    gdina_pars <- questions$params$cdm_parameters
+
+    if (is.null(gdina_pars))
+      stop("cdm_parameters must be provided for GDINA model.")
+
+    if (!is.list(gdina_pars) || length(gdina_pars) != J)
+      stop("cdm_parameters must be a list of length equal to number of items.")
+
+    for (j in seq_len(J)) {
+
+      item_pars <- gdina_pars[[j]]
+
+      if (!is.list(item_pars))
+        stop(paste("GDINA parameters for item", j, "must be a named list."))
+
+      if (is.null(names(item_pars)))
+        stop(paste("GDINA parameters for item", j, "must have named latent patterns."))
+
+      probs <- as.numeric(unlist(item_pars))
+
+      if (any(is.na(probs)))
+        stop(paste("GDINA parameters contain NA for item", j))
+
+      if (any(probs <= 0 | probs >= 1))
+        stop(paste("GDINA probabilities must be in (0,1) for item", j))
+    }
+
+    return(list(
+      parameters = gdina_pars,
+      qmatrix    = qmatrix,
+      n_skills   = K
+    ))
+  }
+
+  stop("Unsupported CDM model.")
 }
+
+
 
 generate_fake_mirt_pars <- function(q_matrix){
     n_itens <- nrow(q_matrix)
@@ -199,9 +281,12 @@ estimate_alpha <- function(
     expand.grid(replicate(K, 0:1, simplify = FALSE))
   )
   n_profiles <- nrow(skill_patterns)
-
-  if (is.null(prior))
+  
+  if (!is.null(prior)) {
+    prior <- as.numeric(prior)
+  } else {
     prior <- rep(1 / n_profiles, n_profiles)
+  }
 
   prob_matrix <- get_prob_matrix(Q, parameters, skill_patterns, model)
 
@@ -261,58 +346,52 @@ estimate_alpha <- function(
 
 customUpdateSkills <- function(design, person, test){
 
-    
-    # Globais esperadas
-    model <- model
-    q_matrix <- q_matrix
-    parameters <- cdm_parameters
-    prior <- NULL
+  cdm_meta <- person$clientData$cdm
 
-    # Respostas do respondente (0/1/NA)
-    responses <- extract.mirtCAT(person, "responses")
-    
-    # Método de estimação (MLE / MAP / EAP)
-    method <- design@method
+  if (is.null(cdm_meta))
+    stop("CDM metadata not found in clientData.")
 
-    K <- ncol(q_matrix)
+  model      <- cdm_meta$config$model
+  q_matrix   <- cdm_meta$data$q_matrix
+  parameters <- cdm_meta$data$parameters
 
-    theta_colnames <- paste0("F", 1:K)
-    theta_se_colnames <- paste0("F", 1:K, "_SE")
+  responses <- extract.mirtCAT(person, "responses")
+  method    <- design@method
+  prior <- cdm_meta$config$prior
 
-    # -----------------------------
-    # Estima habilidades
-    # -----------------------------
-    est <- estimate_alpha(
-        responses = matrix(responses, nrow = 1),
-        Q = q_matrix,
-        parameters = parameters,
-        model = model,
-        method = method,
-        prior = prior
-    )
+  K <- ncol(q_matrix)
 
-    theta_hat <- est$alpha_hat[1, , drop = FALSE]
+  theta_colnames    <- paste0("F", 1:K)
+  theta_se_colnames <- paste0("F", 1:K, "_SE")
 
-    theta_SE <- matrix(
-        NA_real_,
-        nrow = 1,
-        ncol = K,
-        dimnames = list(NULL, theta_se_colnames)
-    )
+  est <- estimate_alpha(
+    responses = matrix(responses, nrow = 1),
+    Q         = q_matrix,
+    parameters= parameters,
+    model     = model,
+    method    = method,
+    prior     = prior
+  )
 
-    # -----------------------------
-    # Atualiza no mirtCAT
-    # -----------------------------
-    person$Update_thetas(
-        theta    = theta_hat,
-        theta_SE = theta_SE
-    )
+  theta_hat <- est$alpha_hat[1, , drop = FALSE]
 
-    person$clientData$est <- est
-    
+  theta_SE <- matrix(
+    NA_real_,
+    nrow = 1,
+    ncol = K,
+    dimnames = list(NULL, theta_se_colnames)
+  )
 
-    invisible()
+  person$Update_thetas(
+    theta    = theta_hat,
+    theta_SE = theta_SE
+  )
+
+  person$clientData$est <- est
+
+  invisible()
 }
+
 
 # --- Item selection criteria functions ---
 KL_criteria <- function(item_index, alpha_hat_index, prob_matrix) {
@@ -621,11 +700,17 @@ select_next_item <- function(
     which(!administered)
   }
 
-  if (length(candidate_items) == 0)
-    stop("No candidate items available.")
+  # ✅ ENCERRAMENTO LIMPO
+  if (length(candidate_items) == 0) {
+    return(list(
+      item = 0,
+      scores = NULL,
+      candidate_items = integer(0)
+    ))
+  }
 
   # --------------------------------------------------
-  # Balanceamento de conteúdo (Kingsbury & Zara)
+  # Balanceamento de conteúdo
   # --------------------------------------------------
   candidate_items <- apply_content_balancing(
     candidate_items = candidate_items,
@@ -634,8 +719,14 @@ select_next_item <- function(
     content_prop    = content_prop
   )
 
-  if (length(candidate_items) == 0)
-    stop("No candidate items available after content balancing.")
+  # ✅ Se balanceamento eliminar todos os candidatos → encerra
+  if (length(candidate_items) == 0) {
+    return(list(
+      item = 0,
+      scores = NULL,
+      candidate_items = integer(0)
+    ))
+  }
 
   # --------------------------------------------------
   # Critérios triviais
@@ -649,7 +740,7 @@ select_next_item <- function(
   }
 
   # --------------------------------------------------
-  # Cálculo dos critérios MDC
+  # Cálculo dos critérios
   # --------------------------------------------------
   scores <- sapply(candidate_items, function(j) {
     switch(
@@ -682,75 +773,56 @@ select_next_item <- function(
   )
 }
 
-customNextItemCDM <- function(
-  person,
-  design,
-  test,
-  model,
-  q_matrix,
-  parameters,
-  criteria,
-  prior,
-  start_item
-) {
 
-  cat("Selecting next item\n")
+customNextItemCDM <- function(person, design, test){
 
-  # --------------------------------------------------
-  # Respostas do respondente
-  # --------------------------------------------------
+  cdm_meta <- person$clientData$cdm
+
+  if (is.null(cdm_meta))
+    stop("CDM metadata not found in clientData.")
+
+  model      <- cdm_meta$config$model
+  criteria   <- cdm_meta$config$criteria
+  start_item <- cdm_meta$config$start_item
+
+  q_matrix   <- cdm_meta$data$q_matrix
+  parameters <- cdm_meta$data$parameters
+
+  prior <- cdm_meta$config$prior
+
   responses <- extract.mirtCAT(person, "responses")
 
-  if (any(!is.na(responses) & !responses %in% c(0, 1))) {
+  if (any(!is.na(responses) & !responses %in% c(0,1)))
     stop("Responses must be coded as 0/1/NA for CDM.")
-  }
 
   administered <- !is.na(responses)
 
-  # --------------------------------------------------
-  # Verificação de restrições
-  # --------------------------------------------------
   constr_fun <- design@constr_fun
   use_constraints <- length(body(constr_fun)) > 1
 
-  # --------------------------------------------------
-  # Balanceamento de conteúdo
-  # --------------------------------------------------
   content      <- design@content
   content_prop <- design@content_prop
+  exposure     <- design@exposure
 
-  # --------------------------------------------------
-  # Controlo de exposição
-  # --------------------------------------------------
-  exposure <- design@exposure
-
-  # --------------------------------------------------
-  # Caso especial: primeiro item
-  # --------------------------------------------------
-  if (all(!administered) && !is.null(start_item) && !is.na(start_item)) {
+  if (all(!administered) && !is.null(start_item)) {
 
     if (is.numeric(start_item)) {
 
       item <- as.integer(start_item)
 
-      if (length(item) != 1)
-        stop("start_item numeric must be a single item index.")
-
       if (item < 1 || item > length(responses))
-        stop("start_item numeric is out of item range.")
+        stop("start_item numeric out of range.")
 
       return(item)
     }
 
-    effective_criterion <- as.character(start_item)
+    effective_criterion <- start_item
 
   } else {
+
     effective_criterion <- criteria
   }
 
-  # --------------------------------------------------
-  # Seleção do próximo item (CD-CAT)
-  # --------------------------------------------------
   sel <- select_next_item(
     person            = person,
     responses         = responses,
@@ -767,100 +839,121 @@ customNextItemCDM <- function(
     exposure          = exposure
   )
 
-  # --------------------------------------------------
-  # Sem restrições
-  # --------------------------------------------------
-  if (!use_constraints) {
+  if (!use_constraints)
     return(sel$item)
-  }
 
-  # --------------------------------------------------
-  # Com restrições (shadow testing / LP)
-  # --------------------------------------------------
-  if (is.null(sel$scores)) {
+  if (is.null(sel$scores))
     stop("Scores must be provided when constraints are active.")
-  }
 
-  return(
-    apply_shadow_cat(
-      person          = person,
-      design          = design,
-      test            = test,
-      scores          = sel$scores,
-      candidate_items = sel$candidate_items
-    )
+  apply_shadow_cat(
+    person          = person,
+    design          = design,
+    test            = test,
+    scores          = sel$scores,
+    candidate_items = sel$candidate_items
   )
 }
-
 
 # --- Termination functions ---
 stop_cdcat <- function(
   person,
   administered,
-  min_items,
+  min_items = NULL,
+  max_items = NULL,
+  max_time  = NULL,
   threshold
 ) {
 
   n_administered <- sum(administered)
-  if (n_administered < min_items) {
+
+  # --------------------------------------------------
+  # 1️⃣ Hard stop: max_items
+  # --------------------------------------------------
+  if (!is.null(max_items) &&
+      is.finite(max_items) &&
+      n_administered >= max_items) {
+
+    # cat("Stopping: max_items reached\n")
+    return(TRUE)
+  }
+
+  # --------------------------------------------------
+  # 2️⃣ Hard stop: max_time
+  # --------------------------------------------------
+  if (!is.null(max_time) &&
+      is.finite(max_time)) {
+
+    start_time <- person$clientData$cdm$start_time
+
+    if (!is.null(start_time)) {
+
+      elapsed <- as.numeric(
+        difftime(Sys.time(), start_time, units = "secs")
+      )
+
+      if (elapsed >= max_time) {
+        cat("Stopping: max_time reached\n")
+        return(TRUE)
+      }
+    }
+  }
+
+  # --------------------------------------------------
+  # 3️⃣ Barrier: min_items
+  # --------------------------------------------------
+  if (!is.null(min_items) &&
+      is.finite(min_items) &&
+      n_administered < min_items) {
+
     return(FALSE)
   }
 
-  # -----------------------------
-  # Usa posterior já estimada
-  # -----------------------------
+  # --------------------------------------------------
+  # 4️⃣ Posterior-based rule
+  # --------------------------------------------------
   est <- person$clientData$est
+
   if (is.null(est) || is.null(est$posterior)) {
-    stop("Posterior not found in person$clientData$est.")
+    return(FALSE)
   }
 
   posterior <- est$posterior[1, ]
-
   ord <- sort(posterior, decreasing = TRUE)
-  cat("Posterior top probabilities:", ord[1:2], "\n")
 
-  # -----------------------------
-  # Regras de parada
-  # -----------------------------
   if (length(threshold) == 1) {
-    # Max posterior rule
+
     return(ord[1] >= threshold[1])
 
   } else if (length(threshold) == 2) {
-    # Dual rule
+
+    # proteção caso só exista 1 perfil possível
+    second <- if (length(ord) >= 2) ord[2] else 0
+
     return(
       ord[1] >= threshold[1] &&
-      ord[2] <= threshold[2]
+      second <= threshold[2]
     )
 
   } else {
-    stop("threshold must be length 1 (max) or 2 (dual)")
+
+    stop("threshold must be length 1 or 2.")
   }
 }
 
+
+
 customStopCDM <- function(person, design, test) {
 
-  # Globais esperadas
-  threshold <- threshold
-
-  # -----------------------------
-  # Itens administrados
-  # -----------------------------
   responses <- extract.mirtCAT(person, "responses")
   administered <- !is.na(responses)
 
-  # -----------------------------
-  # Parâmetros do desenho
-  # -----------------------------
-  min_items <- extract.mirtCAT(design, "min_items")
-
-  # -----------------------------
-  # Decisão de parada
-  # -----------------------------
   stop_cdcat(
     person       = person,
     administered = administered,
-    min_items    = min_items,
-    threshold    = threshold
+    min_items    = extract.mirtCAT(design, "min_items"),
+    max_items    = extract.mirtCAT(design, "max_items"),
+    max_time     = extract.mirtCAT(design, "max_time"),
+    threshold    = person$clientData$cdm$config$threshold
   )
 }
+
