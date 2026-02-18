@@ -622,26 +622,10 @@ apply_exposure_control <- function(
   stop("Invalid exposure vector: must be all in [0,1] or all >= 1.")
 }
 
-apply_shadow_cat <- function(
-  person,
-  design,
-  test,
-  scores,
-  candidate_items
-) {
-
-  names(scores) <- candidate_items
-
-  findNextItem(
-    person    = person,
-    design    = design,
-    test      = test,
-    objective = scores
-  )
-}
-
 select_next_item <- function(
   person,
+  test,
+  design,
   responses,
   administered,
   Q,
@@ -656,22 +640,18 @@ select_next_item <- function(
   exposure = NULL
 ) {
 
+  # ----------------------------------
+  # Validações
+  # ----------------------------------
   if (!is.character(criterion) || length(criterion) != 1)
     stop("criterion must be a single character string.")
 
   if (any(!is.na(responses) & !responses %in% c(0, 1)))
     stop("Responses must be coded as 0/1/NA.")
 
-  if (sum(administered) == 0 && criterion %in% c("KL", "PWKL", "SHE")) {
-    warning(
-      "Criterion '", criterion,
-      "' used with no responses. Posterior equals prior."
-    )
-  }
-
-  # --------------------------------------------------
-  # Estimação do perfil latente (alpha)
-  # --------------------------------------------------
+  # ----------------------------------
+  # Estimação
+  # ----------------------------------
   if (is.null(person$clientData$est)) {
     est <- estimate_alpha(
       responses = matrix(responses, nrow = 1),
@@ -688,28 +668,47 @@ select_next_item <- function(
   posterior <- est$posterior[1, ]
   alpha_hat_index <- est$alpha_hat_index[1]
   prob_matrix <- est$prob_matrix
+  J <- nrow(Q)
 
-  # --------------------------------------------------
-  # Itens candidatos
-  # --------------------------------------------------
-  candidate_items <- if (use_constraints) {
-    seq_len(nrow(Q))
-  } else {
-    which(!administered)
-  }
+  # ==================================
+  #  SHADOW MODE 
+  # ==================================
+  if (use_constraints) {
 
-  # ✅ ENCERRAMENTO LIMPO
-  if (length(candidate_items) == 0) {
+    candidate_items <- seq_len(J)
+
+    scores <- sapply(candidate_items, 
+                function(j){ 
+                  switch( 
+                    criterion, 
+                    KL = KL_criteria(j, alpha_hat_index, prob_matrix), 
+                    PWKL = PWKL_criteria(j, alpha_hat_index, prob_matrix, posterior), 
+                    MPWKL = MPWKL_criteria(j, prob_matrix, posterior), 
+                    SHE = (1 / SHE_criteria(j, prob_matrix, posterior)), 
+                    stop("Invalid criterion.") 
+                    ) 
+                  })
+
+    best_item <- findNextItem(person = person, design = design, test = test, objective = scores, all_index = FALSE)
+
     return(list(
-      item = 0,
-      scores = NULL,
-      candidate_items = integer(0)
+      item = best_item,
+      scores = scores,
+      candidate_items = candidate_items
     ))
+  }else{
+    candidate_items <- which(!administered)
   }
 
-  # --------------------------------------------------
-  # Balanceamento de conteúdo
-  # --------------------------------------------------
+  # ==================================
+  # GREEDY MODE
+  # ==================================
+
+  candidate_items <- which(!administered)
+
+  if (length(candidate_items) == 0)
+    return(0)
+
   candidate_items <- apply_content_balancing(
     candidate_items = candidate_items,
     administered    = administered,
@@ -717,29 +716,15 @@ select_next_item <- function(
     content_prop    = content_prop
   )
 
-  # ✅ Se balanceamento eliminar todos os candidatos → encerra
-  if (length(candidate_items) == 0) {
-    return(list(
-      item = 0,
-      scores = NULL,
-      candidate_items = integer(0)
-    ))
-  }
+  if (length(candidate_items) == 0)
+    return(0)
 
-  # --------------------------------------------------
-  # Critérios triviais
-  # --------------------------------------------------
-  if (criterion == "seq") {
-    return(list(item = candidate_items[1], scores = NULL))
-  }
+  if (criterion == "seq")
+    return(candidate_items[1])
 
-  if (criterion == "random") {
-    return(list(item = sample(candidate_items, 1), scores = NULL))
-  }
+  if (criterion == "random")
+    return(sample(candidate_items, 1))
 
-  # --------------------------------------------------
-  # Cálculo dos critérios
-  # --------------------------------------------------
   scores <- sapply(candidate_items, function(j) {
     switch(
       criterion,
@@ -751,24 +736,17 @@ select_next_item <- function(
     )
   })
 
-  # --------------------------------------------------
-  # Controle de exposição
-  # --------------------------------------------------
-  if (!is.null(exposure) && length(exposure) < max(candidate_items)) {
-    stop("Exposure vector must be defined for all items.")
-  }
-
   selected_index <- apply_exposure_control(
     scores = scores,
     exposure = if (!is.null(exposure)) exposure[candidate_items] else NULL,
     administered = administered
   )
 
-  list(
-    item            = candidate_items[selected_index],
-    scores          = scores,
+  return(list(
+    item = candidate_items[selected_index], 
+    scores = scores,
     candidate_items = candidate_items
-  )
+  ))
 }
 
 
@@ -823,6 +801,8 @@ customNextItemCDM <- function(person, design, test){
 
   sel <- select_next_item(
     person            = person,
+    test              = test,
+    design            = design,
     responses         = responses,
     administered      = administered,
     Q                 = q_matrix,
@@ -837,19 +817,8 @@ customNextItemCDM <- function(person, design, test){
     exposure          = exposure
   )
 
-  if (!use_constraints)
-    return(sel$item)
+  return(sel$item)
 
-  if (is.null(sel$scores))
-    stop("Scores must be provided when constraints are active.")
-
-  apply_shadow_cat(
-    person          = person,
-    design          = design,
-    test            = test,
-    scores          = sel$scores,
-    candidate_items = sel$candidate_items
-  )
 }
 
 # --- Termination functions ---

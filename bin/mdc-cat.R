@@ -404,7 +404,7 @@ cdm_start_assessment <- function(req, res, verbose = FALSE, validate = TRUE) {
     
     mo <- create_mirt_object(
       parameters = params,
-      item_type = "3PL",
+      item_type = "3PL", # placeholder, not used in CDM
       latent_covariance = trait_cov
     )
     
@@ -414,6 +414,7 @@ cdm_start_assessment <- function(req, res, verbose = FALSE, validate = TRUE) {
     cat_design <- create_cat_design(
         mo,
         method = parsed$method,
+        criteria = "KL",  # placeholder, not used in CDM
         design = design
       )
     
