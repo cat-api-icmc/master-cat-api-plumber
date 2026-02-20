@@ -269,9 +269,17 @@ parse_irt_request <- function(req) {
     NULL
   }
 
+  model <- config$model_type %||% "3PL"
+
+  questions <- body$questions
+  if(model %in% IRT_DOMAIN$models$multidimensional){
+    disc <- questions$params$irt_discrimination
+    questions$params$irt_discrimination <- matrix(unlist(disc), nrow=length(disc), byrow=TRUE)
+  }
+
   list(
-    questions = body$questions,
-    model = config$model_type %||% "3PL",
+    questions = questions,
+    model = model,
     method = config$method %||% "EAP",
     start_item = config$start_item,
     criteria = config$criteria,
@@ -365,7 +373,6 @@ validate_irt_request <- function(p) {
   # 5️⃣ Discrimination validation
   # -------------------------------------------------
   disc <- params$irt_discrimination
-
   if (base_model == "1PL") {
 
     # Rasch: discrimination should NOT be provided
@@ -730,7 +737,6 @@ irt_start_assessment <- function(req, res) {
     # 1 PARSE
     # ===============================
     parsed <- parse_irt_request(req)
-    cat('upper: ', parsed$questions$params$irt_upper_asymptote, '\n')
 
     # ===============================
     # 2 VALIDATION
