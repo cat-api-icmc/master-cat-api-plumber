@@ -707,7 +707,7 @@ select_next_item <- function(
   candidate_items <- which(!administered)
 
   if (length(candidate_items) == 0)
-    return(0)
+    return(list(item=0))
 
   candidate_items <- apply_content_balancing(
     candidate_items = candidate_items,
@@ -717,13 +717,13 @@ select_next_item <- function(
   )
 
   if (length(candidate_items) == 0)
-    return(0)
+    return(list(item=0))
 
   if (criterion == "seq")
-    return(candidate_items[1])
+    return(list(item=candidate_items[1]))
 
   if (criterion == "random")
-    return(sample(candidate_items, 1))
+    return(list(item=sample(candidate_items, 1)))
 
   scores <- sapply(candidate_items, function(j) {
     switch(
