@@ -10,5 +10,5 @@ docker stop $(docker ps -a -q)
 To deploy the project to production, use the following command:
 
 ```bash
-docker compose build --no-cache && docker push brunosilvestre00/plumber-cat-api
+docker compose build --no-cache && docker push catapiicmc/plumber-cat-api
 ```
