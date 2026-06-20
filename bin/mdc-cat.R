@@ -203,6 +203,7 @@ parse_cdm_request <- function(req) {
     content_prop      = content_prop,
     exposure          = exposure,
     constr_fun_string = config$constr_fun,
+    shadow_test_config = config$shadow_test_config,
     prior             = prior
   )
 }
@@ -377,7 +378,10 @@ cdm_start_assessment <- function(req, res, verbose = FALSE, validate = TRUE) {
     # ======================================
     cdm_objects <- build_cdm_domain_objects(parsed)
     
-    constr_fun <- build_constr_fun(parsed$constr_fun_string)
+    constr_fun <- resolve_constr_fun(
+      shadow_test_config = parsed$shadow_test_config,
+      constr_fun_string  = parsed$constr_fun_string
+    )
 
     # --------------------------------------
     # CAT DESIGN (only allowed fields)

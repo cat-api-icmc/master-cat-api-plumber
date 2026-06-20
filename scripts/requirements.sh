@@ -9,5 +9,6 @@ Rscript -e 'install.packages("plumber")'
 
 # install mirtCAT
 Rscript -e "install.packages('remotes', repos='https://cran.rstudio.com/')"
-Rscript -e "remotes::install_github('philchalmers/mirtCAT')"
+#Rscript -e "install.packages(c('dcurver', 'mirt'), repos='https://cran.rstudio.com/')"
+Rscript -e "remotes::install_github('philchalmers/mirtCAT', dependencies=TRUE)"
 # Rscript -e "install.packages('mirtCAT', repos='https://cran.rstudio.com/')"

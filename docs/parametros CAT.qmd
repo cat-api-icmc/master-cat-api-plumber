@@ -150,6 +150,23 @@ const_fun <- function(design, person, test){
 
 A definição acima corresponde às restrições `1 * x1 + 1 * x2 + ... + 1 * xn = 10` e `1 * x1 + 1 * x2 + 0 * x3 + ... + 0 * xn <= 1`, onde os termos `x` representam indicadores binários para cada respectivo item, que o otimizador está buscando. Dado algum vetor objetivo fornecido a `findNextItem`, os 10 itens mais otimizados serão selecionados, atendendo a essas duas restrições, significando que 1) exatamente 10 itens serão administrados, e 2) se o item 1 ou 2 forem selecionados, esses dois itens nunca aparecerão no mesmo formulário de teste (embora nenhum seja forçado a aparecer em qualquer teste). Veja `findNextItem` para mais detalhes e exemplos.
 
+**shadow_test_config**: Alternativa de alto nível ao `constr_fun`, exposta pela API (endpoints `/irt/start-assessment` e `/cdm/start-assessment`). Em vez de enviar uma função R como string, o cliente descreve as restrições de cardinalidade do Shadow CAT como uma lista de **triplas** `(query, op, value)`, e a API gera o `constr_fun` internamente (módulo `bin/constraints.R`). Cada tripla equivale a uma linha de restrição da forma `Σ_{j ∈ query} x_j (op) value`.
+
+-   **query**: enumera os índices de itens (base-1). Aceita lista por vírgula (`"1, 5, 6"`), intervalos `a:b` (`"1, 3:7, 9"` → 1,3,4,5,6,7,9) ou `"ALL"` (todos os itens do banco). Espaços são ignorados.
+-   **op**: `<=`, `>=` ou `==` (também aceita `=` e os rótulos em português `"menor ou igual a"`, `"maior ou igual a"`, `"igual a"`).
+-   **value**: a cota (número escalar).
+
+Por exemplo, as mesmas duas restrições do `constr_fun` acima (exatamente 10 itens; itens 1 e 2 como inimigos) são expressas no corpo da requisição, dentro de `config`, como:
+
+``` json
+"shadow_test_config": [
+  { "query": "ALL",  "op": "==", "value": 10 },
+  { "query": "1, 2", "op": "<=", "value": 1 }
+]
+```
+
+Com isso é possível expressar comprimento do teste (`ALL == n`), inclusão obrigatória (`lista == tamanho_da_lista`), exclusão (`lista == 0`), itens inimigos (`lista <= 1`), "pelo menos um" (`lista >= 1`) e cotas em geral. A validação de operador e de `value` ocorre no momento da configuração; a validação dos índices (intervalo `1..nitems`) ocorre na primeira seleção de item, ainda dentro da chamada `start-assessment`, com mensagens de erro apontando a restrição problemática. Quando `shadow_test_config` é informado, ele tem prioridade sobre o campo legado `constr_fun` (string); na ausência de ambos, nenhuma restrição é aplicada.
+
 **test_properties**: Um objeto `data.frame` definido pelo usuário para ser usado com uma função `customNextItem` fornecida. Isso deve ser usado para definir propriedades específicas inerentes aos itens do teste (por exemplo, se são experimentais, têm um esquema de ponderação particular, devem ser usados apenas para um grupo específico de indivíduos, e assim por diante). O número de linhas deve ser igual ao número de itens no banco de itens, e cada linha corresponde ao respectivo item. Essa entrada aparece no objeto de design interno em um slot `test_properties`.
 
 **person_properties**: Um objeto `data.frame` definido pelo usuário para ser usado com uma função `customNextItem` fornecida. Isso deve ser usado para definir propriedades específicas inerentes aos participantes (por exemplo, variáveis de agrupamento conhecidas, idade, se já fizeram o teste antes (e quais itens responderam), e assim por diante). Em simulações off-line, o número de linhas deve ser igual ao número de participantes. Essa entrada aparece no objeto de design interno em um slot `person_properties`; para simulações de Monte Carlo, as linhas devem ser indexadas manualmente usando o slot `person$ID`.

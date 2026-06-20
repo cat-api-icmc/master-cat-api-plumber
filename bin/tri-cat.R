@@ -305,7 +305,8 @@ parse_irt_request <- function(req) {
     content = content,
     content_prop = content_prop,
     exposure = exposure,
-    constr_fun_string = config$constr_fun
+    constr_fun_string = config$constr_fun,
+    shadow_test_config = config$shadow_test_config
   )
 }
 
@@ -746,7 +747,10 @@ irt_start_assessment <- function(req, res) {
     # ===============================
     # 3 BUILD DOMAIN OBJECTS
     # ===============================
-    constr_fun <- build_constr_fun(parsed$constr_fun_string)
+    constr_fun <- resolve_constr_fun(
+      shadow_test_config = parsed$shadow_test_config,
+      constr_fun_string  = parsed$constr_fun_string
+    )
 
     design <- list(
       min_SEM = parsed$min_sem,
@@ -882,6 +886,12 @@ irt_next_item <- function(req, res) {
     # 4 SELECT NEXT ITEM
     # ===============================
     next_index <- irt_select_next_item(cat_design)
+
+    # irt_select_next_item sinaliza término retornando 0 (cap/NA), mas a
+    # mutação de stop_now feita lá dentro se perde (pass-by-value). Reaplica
+    # aqui para que tanto o campo `stop` quanto o design serializado fiquem corretos.
+    if (next_index == 0)
+      cat_design$design@stop_now <- TRUE
 
     print_item_selection(next_index, stage = "NEXT")
     

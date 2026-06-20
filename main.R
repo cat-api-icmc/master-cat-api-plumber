@@ -4,6 +4,7 @@ app_version <- "1.0.0"
 
 source("utils/serializer.R")
 source("bin/cat.R")
+source("bin/constraints.R")
 source("bin/env.R")
 source("bin/tri-cat.R")
 source("bin/mdc.R")
