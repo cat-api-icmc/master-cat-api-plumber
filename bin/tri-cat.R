@@ -241,15 +241,25 @@ parse_irt_request <- function(req) {
   # -----------------------------
   prior <- config$prior %||% list()
 
-  latent_means <- prior$latent_means
-  latent_covariance <- prior$latent_covariance
+  # latent_means / latent_covariances: aceitos no topo do config (nomes do
+  # frontend) com fallback para dentro de `prior`. Sempre achatados para vetor
+  # numérico. A covariância chega como vetor plano de n_dim^2 valores (ou como
+  # matriz aninhada, que unlist achata na mesma ordem) e é remontada no start.
+  latent_means_raw <- config$latent_means %||% prior$latent_means
+  latent_means <- if (length(latent_means_raw)) as.numeric(unlist(latent_means_raw)) else NULL
+
+  latent_cov_raw <- config$latent_covariances %||% prior$latent_covariance
+  latent_covariance <- if (length(latent_cov_raw)) as.numeric(unlist(latent_cov_raw)) else NULL
 
   # -----------------------------
   # DESIGN EXTRAS (TRI)
   # -----------------------------
   quadpts <- config$quadpts
-  theta_range <- config$theta_range
-  weights <- config$weights
+  # Arrays JSON vazios ([]) chegam como list() de comprimento 0, que não é
+  # numérico e quebra os slots do Design do mirtCAT. Coerge: vazio -> NULL,
+  # populado -> vetor numérico.
+  theta_range <- if (length(config$theta_range)) as.numeric(unlist(config$theta_range)) else NULL
+  weights <- if (length(config$weights)) as.numeric(unlist(config$weights)) else NULL
   KL_delta <- config$KL_delta
 
   # -----------------------------
@@ -274,7 +284,12 @@ parse_irt_request <- function(req) {
   questions <- body$questions
   if(model %in% IRT_DOMAIN$models$multidimensional){
     disc <- questions$params$irt_discrimination
-    questions$params$irt_discrimination <- matrix(unlist(disc), nrow=length(disc), byrow=TRUE)
+    # disc pode chegar como matriz (jsonlite já simplificou o array aninhado)
+    # ou como lista de linhas (uma por item). Normaliza para matriz n_items x n_dim
+    # preservando a ordem linha-a-linha em ambos os casos.
+    if (!is.matrix(disc))
+      disc <- do.call(rbind, lapply(disc, function(r) as.numeric(unlist(r))))
+    questions$params$irt_discrimination <- disc
   }
 
   list(
@@ -484,13 +499,13 @@ validate_irt_request <- function(p) {
 
   if (!is.null(p$latent_covariance)) {
 
-    lc <- as.matrix(p$latent_covariance)
-
-    if (!is.numeric(lc) ||
-        nrow(lc) != ncol(lc) ||
-        nrow(lc) != n_dim)
+    if (!is.numeric(p$latent_covariance) ||
+        length(p$latent_covariance) != n_dim^2)
       abort_unprocessable(
-        "latent_covariance must be square matrix with dimension equal to number of traits."
+        sprintf(
+          "latent_covariances must be a flat vector of n_dim^2 = %d numeric values.",
+          n_dim^2
+        )
       )
   }
 
@@ -792,9 +807,19 @@ irt_start_assessment <- function(req, res) {
     # Default latent means
     latent_means <- parsed$latent_means %||% rep(0, n_dim)
 
-    # Default covariance
+    # Covariance: vetor plano (n_dim^2) -> matriz n_dim x n_dim (byrow).
     if (!is.null(parsed$latent_covariance)) {
-      latent_covariance <- as.matrix(parsed$latent_covariance)
+
+      latent_covariance <- matrix(
+        parsed$latent_covariance, n_dim, n_dim, byrow = TRUE
+      )
+
+      if (!isSymmetric(latent_covariance))
+        abort_unprocessable("latent_covariances must be symmetric.")
+
+      if (any(eigen(latent_covariance, symmetric = TRUE, only.values = TRUE)$values < -1e-8))
+        abort_unprocessable("latent_covariances must be positive semidefinite.")
+
     } else {
       latent_covariance <- if (is_multidim) diag(n_dim) else matrix(1)
     }
